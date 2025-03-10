@@ -240,7 +240,30 @@ class AQM_Security_Logger {
         // Sanitize input
         $ip = sanitize_text_field($ip);
         
-        // Check if an entry exists for this IP
+        // Get test mode setting
+        $test_mode = get_option('aqm_security_test_mode', false);
+        
+        // If in test mode, consider each log unique to allow simulation of different IPs
+        if ($test_mode) {
+            $test_ip = get_option('aqm_security_test_ip', '');
+            if (!empty($test_ip) && $ip === $test_ip) {
+                // In test mode with test IP, check if we've logged this IP recently (in the last minute)
+                // This allows for multiple test sessions while preventing duplicates within same session
+                $one_minute_ago = date('Y-m-d H:i:s', strtotime('-1 minute'));
+                $existing = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $table_name WHERE ip = %s AND timestamp > %s",
+                    $ip,
+                    $one_minute_ago
+                ));
+                
+                // Debug logging
+                error_log("[AQM Security] Test mode active - Checking for recent log entry for test IP: $ip - Found recent: " . ($existing > 0 ? 'Yes' : 'No'));
+                
+                return $existing > 0;
+            }
+        }
+        
+        // For non-test mode or if not using test IP, check if an entry exists for this IP
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $table_name WHERE ip = %s",
             $ip
