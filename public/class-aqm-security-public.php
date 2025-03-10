@@ -375,40 +375,28 @@ class AQM_Security_Public {
             $this->is_allowed = AQM_Security_API::is_visitor_allowed($visitor);
         }
 
-        // Check if a log entry already exists for the visitor
-        if (!AQM_Security_Logger::has_log_entry($visitor['ip'])) {
-            // Get flag URL
-            $flag_url = isset($visitor['location']['country_flag']) ? $visitor['location']['country_flag'] : '';
-            
-            // Write to log file to help with debugging
-            error_log("[AQM Security] About to log visitor: IP=" . 
-                (isset($visitor['ip']) ? $visitor['ip'] : 'Unknown') . 
-                ", Country=" . (isset($visitor['country']) ? $visitor['country'] : 'Unknown') .
-                ", Mode=" . ($is_test_mode ? 'Test' : 'Normal'));
-            
-            // Force a new log entry to ensure it's logged
-            $result = AQM_Security_Logger::log_visitor(
-                isset($visitor['ip']) ? $visitor['ip'] : '0.0.0.0',
-                isset($visitor['country']) ? $visitor['country'] : 'Unknown',
-                isset($visitor['region']) ? $visitor['region'] : 'Unknown',
-                isset($visitor['zip']) ? $visitor['zip'] : 'Unknown',
-                $this->is_allowed,
-                $flag_url,
-                true // Always force new log entry
-            );
-        } else {
-            $result = true; // Log entry already exists
-        }
+        // Get flag URL
+        $flag_url = isset($visitor['location']['country_flag']) ? $visitor['location']['country_flag'] : '';
         
-        // Debug log the visitor access
-        AQM_Security_API::debug_log(
-            'Visitor access logged. ' .
-            'IP: ' . (isset($visitor['ip']) ? $visitor['ip'] : 'Unknown') . 
-            ', Is Test Mode: ' . ($is_test_mode ? 'Yes' : 'No') .
-            ', Is Allowed: ' . ($this->is_allowed ? 'Yes' : 'No')
+        // Write to log file to help with debugging
+        error_log("[AQM Security] Logging visitor: IP=" . 
+            (isset($visitor['ip']) ? $visitor['ip'] : 'Unknown') . 
+            ", Country=" . (isset($visitor['country']) ? $visitor['country'] : 'Unknown') .
+            ", Mode=" . ($is_test_mode ? 'Test' : 'Normal') . 
+            ", Allowed=" . ($this->is_allowed ? 'Yes' : 'No'));
+        
+        // Log visitor (our updated logger will handle creating a new entry or updating an existing one)
+        $result = AQM_Security_Logger::log_visitor(
+            isset($visitor['ip']) ? $visitor['ip'] : '0.0.0.0',
+            isset($visitor['country']) ? $visitor['country'] : 'Unknown',
+            isset($visitor['region']) ? $visitor['region'] : 'Unknown',
+            isset($visitor['zip']) ? $visitor['zip'] : 'Unknown',
+            $this->is_allowed,
+            $flag_url,
+            $is_test_mode // Force new log entry only for test mode
         );
-        
-        return $result;
+
+        return $result !== false;
     }
     
     /**
