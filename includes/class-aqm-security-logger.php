@@ -223,6 +223,36 @@ class AQM_Security_Logger {
     }
     
     /**
+     * Check if a log entry already exists for a specific IP address
+     * 
+     * @param string $ip Visitor IP address to check
+     * @return bool Whether an entry exists
+     */
+    public static function has_log_entry($ip) {
+        global $wpdb;
+        
+        // Ensure the table exists
+        self::maybe_create_table();
+        
+        // Get the full table name with prefix
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        
+        // Sanitize input
+        $ip = sanitize_text_field($ip);
+        
+        // Check if an entry exists for this IP
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_name WHERE ip = %s",
+            $ip
+        ));
+        
+        // Debug logging
+        error_log("[AQM Security] Checking for existing log entry for IP: $ip - Found: " . ($existing > 0 ? 'Yes' : 'No'));
+        
+        return $existing > 0;
+    }
+    
+    /**
      * Debug log message
      * 
      * @param string $message Debug message
