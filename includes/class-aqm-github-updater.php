@@ -67,6 +67,12 @@ class AQM_GitHub_Updater {
         add_filter('plugins_api', [$this, 'plugin_popup'], 10, 3);
         add_filter('upgrader_post_install', [$this, 'after_install'], 10, 3);
         
+        // Add "Check for Updates" link to plugin list
+        add_filter('plugin_action_links_' . $this->basename, [$this, 'add_check_update_link']);
+        
+        // Handle the manual update check action
+        add_action('admin_init', [$this, 'handle_manual_update_check']);
+        
         // Clean up options when plugin is deleted
         register_deactivation_hook($this->config['slug'], [$this, 'flush_update_cache']);
     }
@@ -101,54 +107,51 @@ class AQM_GitHub_Updater {
             $request_headers[] = 'Authorization: token ' . $this->config['access_token'];
         }
 
-        $response = wp_remote_get(
-            $request_uri,
-            [
-                'headers' => $request_headers,
-                'sslverify' => $this->config['sslverify'],
-            ]
-        );
+        // Build the request arguments
+        $request_args = [
+            'headers' => $request_headers,
+            'sslverify' => $this->config['sslverify']
+        ];
 
-        if (is_wp_error($response) || 200 !== wp_remote_retrieve_response_code($response)) {
-            $this->log_error('Error fetching GitHub release info: ' . wp_remote_retrieve_response_message($response));
+        // Make the request
+        $response = wp_remote_get($request_uri, $request_args);
+
+        // Check for errors
+        if (is_wp_error($response)) {
+            $this->log_error('Error fetching GitHub repository data: ' . $response->get_error_message());
             return;
         }
 
-        $response_body = json_decode(wp_remote_retrieve_body($response));
-        
-        // If there's no release data or no tag name, return
-        if (empty($response_body) || !isset($response_body->tag_name)) {
-            $this->log_error('Invalid GitHub release data received');
+        // Check response code
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $this->log_error("GitHub API returned non-200 status code: {$response_code}");
             return;
         }
 
-        // Parse release info
-        $this->github_response = new stdClass();
-        $this->github_response->tag_name = $response_body->tag_name;
-        $this->github_response->version = ltrim($response_body->tag_name, 'v');
-        $this->github_response->published_at = $response_body->published_at;
-        $this->github_response->zipball_url = $response_body->zipball_url;
-        $this->github_response->body = $response_body->body; // Release notes
+        // Parse the response
+        $response_body = wp_remote_retrieve_body($response);
+        $release_data = json_decode($response_body);
 
-        // Check if there are any assets (pre-built zip files)
-        if (!empty($response_body->assets) && $this->config['release_asset']) {
-            foreach ($response_body->assets as $asset) {
-                if (strpos($asset->name, '.zip') !== false) {
-                    $this->github_response->download_url = $asset->browser_download_url;
-                    break;
-                }
-            }
+        // Check if we got valid data
+        if (empty($release_data) || !is_object($release_data)) {
+            $this->log_error('Invalid GitHub API response: ' . substr($response_body, 0, 150) . '...');
+            return;
         }
 
-        // If no asset found, use the source code zip
-        if (empty($this->github_response->download_url)) {
-            $this->github_response->download_url = $response_body->zipball_url;
+        // Force refresh transients when manually checking
+        if (isset($_GET['action']) && $_GET['action'] === 'check_for_updates' && 
+            isset($_GET['plugin']) && $_GET['plugin'] === $this->basename) {
+            delete_site_transient('update_plugins');
         }
+
+        // Store the response for use in check_update
+        $this->github_response = $release_data;
     }
 
     /**
      * Check for updates and modify the update transient
-     *
+     * 
      * @param object $transient Update transient object
      * @return object Modified update transient
      */
@@ -157,42 +160,67 @@ class AQM_GitHub_Updater {
             return $transient;
         }
 
-        // Get current plugin version
-        $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $this->basename);
-        $current_version = $plugin_data['Version'];
-
-        // Get repository data
+        // Force update check if manually triggered
+        $force_check = isset($_GET['action']) && $_GET['action'] === 'check_for_updates' && 
+                      isset($_GET['plugin']) && $_GET['plugin'] === $this->basename;
+        
+        // Get data from GitHub
         $this->get_repository_info();
 
-        // If no response or error, return original transient
-        if (empty($this->github_response)) {
-            return $transient;
-        }
+        // Check if a new version is available
+        if (isset($this->github_response->tag_name) && version_compare($this->github_response->tag_name, AQM_SECURITY_VERSION, '>')) {
+            $download_link = isset($this->github_response->zipball_url) 
+                ? $this->github_response->zipball_url 
+                : $this->github_response->tarball_url;
 
-        // Compare versions using version_compare
-        $github_version = $this->github_response->version;
-        $update_available = version_compare($github_version, $current_version, '>');
-        
-        // Log version comparison for debugging
-        $this->log_error("Version comparison: GitHub version: {$github_version}, Current version: {$current_version}, Update available: " . ($update_available ? 'Yes' : 'No'));
-        
-        // If newer version exists, add it to the transient
-        if ($update_available) {
-            $package = $this->github_response->download_url;
-            
-            // Create the plugin update object
+            // Add authorization to download URL if token is available
+            if (!empty($this->config['access_token'])) {
+                $download_link = add_query_arg(
+                    ['access_token' => $this->config['access_token']],
+                    $download_link
+                );
+            }
+
             $obj = new stdClass();
             $obj->slug = $this->slug;
-            $obj->new_version = $github_version;
+            $obj->new_version = $this->github_response->tag_name;
             $obj->url = $this->config['github_url'];
-            $obj->package = $package;
+            $obj->package = $download_link;
+            $obj->tested = $this->config['tested'];
+            $obj->requires = $this->config['requires'];
+            $obj->last_updated = isset($this->github_response->published_at) ? $this->github_response->published_at : date('Y-m-d');
             
-            // Plugin folder might be named differently than slug
-            $obj->plugin = $this->basename;
-            
+            // Add plugin info to transient
             $transient->response[$this->basename] = $obj;
+
+            // Log successful update check
+            $this->log_error("Update available: {$obj->new_version}");
+        } else {
+            // If no update is available, remove from response to avoid confusion
+            if (isset($transient->response[$this->basename])) {
+                unset($transient->response[$this->basename]);
+            }
+
+            // Add to no_update list for clarity
+            if (!isset($transient->no_update[$this->basename])) {
+                $obj = new stdClass();
+                $obj->slug = $this->slug;
+                $obj->plugin = $this->basename;
+                $obj->new_version = AQM_SECURITY_VERSION;
+                $obj->url = $this->config['github_url'];
+                $obj->package = '';
+                $obj->tested = $this->config['tested'];
+                $transient->no_update[$this->basename] = $obj;
+            }
         }
-        
+
+        // Show admin notice for manual checks
+        if ($force_check) {
+            add_action('admin_notices', function() {
+                echo '<div class="notice notice-info is-dismissible"><p>AQM Security: Update check completed.</p></div>';
+            });
+        }
+
         return $transient;
     }
 
@@ -225,14 +253,14 @@ class AQM_GitHub_Updater {
         $obj = new stdClass();
         $obj->name = $plugin_data['Name'];
         $obj->slug = $this->slug;
-        $obj->version = $this->github_response->version;
+        $obj->version = $this->github_response->tag_name;
         $obj->tested = $this->config['tested'];
         $obj->requires = $this->config['requires'];
         $obj->author = $plugin_data['Author'];
         $obj->author_profile = $plugin_data['AuthorURI'];
         $obj->homepage = $this->config['github_url'];
-        $obj->download_link = $this->github_response->download_url;
-        $obj->trunk = $this->github_response->download_url;
+        $obj->download_link = $this->github_response->zipball_url;
+        $obj->trunk = $this->github_response->zipball_url;
         $obj->last_updated = $this->github_response->published_at;
         
         // Format release notes
@@ -282,6 +310,28 @@ class AQM_GitHub_Updater {
         $activate = activate_plugin($this->basename);
         
         return $result;
+    }
+
+    /**
+     * Add "Check for Updates" link to plugin list
+     *
+     * @param array $links Plugin action links
+     * @return array Modified plugin action links
+     */
+    public function add_check_update_link($links) {
+        $links[] = '<a href="' . admin_url('plugins.php?action=check_for_updates&plugin=' . $this->basename) . '">Check for Updates</a>';
+        return $links;
+    }
+
+    /**
+     * Handle manual update check action
+     */
+    public function handle_manual_update_check() {
+        if (isset($_GET['action']) && $_GET['action'] === 'check_for_updates' && isset($_GET['plugin']) && $_GET['plugin'] === $this->basename) {
+            $this->check_update(get_site_transient('update_plugins'));
+            wp_redirect(admin_url('plugins.php'));
+            exit;
+        }
     }
 
     /**
