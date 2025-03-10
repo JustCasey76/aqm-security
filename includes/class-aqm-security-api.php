@@ -251,42 +251,7 @@ class AQM_Security_API {
             delete_transient('aqm_security_visitor_data_' . md5($ip));
         }
         
-        // Try to get cached data first (unless forcing fresh)
-        $visitor_data = get_transient('aqm_security_visitor_data_' . md5($ip));
-        if (!$force_fresh && $visitor_data) {
-            self::debug_log('Using cached geolocation data for IP: ' . $ip);
-            
-            // Always check the IP against the blocklist, even if using cached data
-            $blocked_ips = explode("\n", get_option('aqm_security_blocked_ips', ''));
-            $blocked_ips = array_map('trim', $blocked_ips);
-            $blocked_ips = array_filter($blocked_ips); // Remove empty entries
-            
-            // Process comma-separated values
-            $processed_ips = array();
-            foreach ($blocked_ips as $ip_entry) {
-                if (strpos($ip_entry, ',') !== false) {
-                    $ips = explode(',', $ip_entry);
-                    $ips = array_map('trim', $ips);
-                    $processed_ips = array_merge($processed_ips, $ips);
-                } else {
-                    $processed_ips[] = $ip_entry;
-                }
-            }
-            $blocked_ips = $processed_ips;
-            
-            // Check if IP is explicitly blocked
-            if (!empty($blocked_ips) && in_array($ip, $blocked_ips)) {
-                self::debug_log('CRITICAL ALERT: IP is explicitly blocked (cached check): ' . $ip);
-                
-                // Update the cached data to ensure the block is applied
-                $visitor_data['is_blocked'] = true;
-                set_transient('aqm_security_visitor_data_' . md5($ip), $visitor_data, HOUR_IN_SECONDS);
-            }
-            
-            return $visitor_data;
-        }
-        
-        // If we're here, we need to get fresh data, either because cache is empty or force_fresh is true
+        // Don't use any caching for visitor data - directly get geolocation data
         self::debug_log('Getting fresh geolocation data for IP: ' . $ip);
         
         // Get geolocation data for the IP
@@ -340,9 +305,6 @@ class AQM_Security_API {
             self::debug_log('CRITICAL ALERT: IP is explicitly blocked (fresh check): ' . $ip);
             $visitor_data['is_blocked'] = true;
         }
-        
-        // Cache the visitor data for 1 hour
-        set_transient('aqm_security_visitor_data_' . md5($ip), $visitor_data, HOUR_IN_SECONDS);
         
         return $visitor_data;
     }

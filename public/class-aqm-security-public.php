@@ -36,9 +36,6 @@ class AQM_Security_Public {
         // Initialize shortcodes first
         add_action('init', array($this, 'initialize_shortcodes'), 5);
         
-        // Initialize geolocation check on init to ensure it runs for all pages
-        add_action('init', array($this, 'initialize_geolocation_check'), 10);
-        
         // Add hooks for the plugin's main functionality
         add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
@@ -86,65 +83,75 @@ class AQM_Security_Public {
                 return;
             }
             
-            // Get visitor data and check if they're allowed
-            $this->check_geolocation();
-
-            // CRITICAL: Apply form blocking immediately - don't wait for template redirect
-            // Forms must be blocked if visitor is explicitly blocked
-            if (isset($this->is_allowed) && $this->is_allowed === false) {
-                $this->apply_formidable_visibility(false);
-                
-                // Force CSS to be added to head to hide forms
-                add_action('wp_head', array($this, 'add_blocked_form_styles'), 1);
-                
-                // Add stronger direct output of CSS right away
-                add_action('wp_print_styles', function() {
-                    echo '<style type="text/css">
-                        .aqm-security-blocked-message {
-                            padding: 15px !important;
-                            background-color: #f8d7da !important;
-                            color: #721c24 !important;
-                            border: 1px solid #f5c6cb !important;
-                            border-radius: 4px !important;
-                            margin: 10px 0 !important;
-                            font-size: 16px !important;
-                            text-align: center !important;
-                        }
-                        
-                        /* Hide ANY forms that might slip through with !important flags */
-                        .frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form, 
-                        .frm_js_validation, .frm_logic_form, .frm_page_num_form, .frm_no_hide_form, 
-                        .frm_form_field, .frm-show-form, .frm_first_form, form.frm-show-form { 
-                            display: none !important; 
-                            visibility: hidden !important;
-                            opacity: 0 !important;
-                            height: 0 !important;
-                            overflow: hidden !important;
-                        }
-                    </style>';
-                }, 1);
-                
-                // Log the form blocking
-                error_log("[AQM Security] Forms blocked for visitor with IP: " . AQM_Security_API::get_client_ip());
-            } else {
-                // Debug log for allowed visitors
-                error_log("[AQM Security] Visitor is allowed, forms should be visible");
-                
-                // Ensure any form blocking from previous checks is removed
-                $this->restore_formidable_forms();
-            }
-            
-            // Ensure visitor is logged for all page types
-            if ($this->is_allowed === null) {
-                error_log("[AQM Security] WARNING: is_allowed is null - forcing visitor data collection");
-                $visitor = AQM_Security_API::get_visitor_geolocation(true);
-                if ($visitor) {
-                    $this->log_visitor_access(false, $visitor);
-                }
-            }
+            // Add filters for form detection
+            add_filter('frm_display_get_form', array($this, 'detect_form_and_check_geolocation'), 5, 2);
+            add_filter('frm_filter_final_form', array($this, 'detect_form_and_check_geolocation'), 5, 2);
+            add_filter('the_content', array($this, 'detect_form_in_content'), 5);
+            add_filter('widget_text', array($this, 'detect_form_in_content'), 5);
+            add_filter('frm_replace_shortcodes', array($this, 'detect_form_in_shortcode'), 5, 2);
         } catch (Exception $e) {
-            AQM_Security_API::debug_log('Error initializing geolocation check: ' . $e->getMessage());
+            // Log any errors
+            error_log('[AQM Security] Error in initialize_geolocation_check: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Detect forms in page content and trigger geolocation check if needed
+     * 
+     * @param string $content The content to check
+     * @return string The original content
+     */
+    public function detect_form_in_content($content) {
+        // Only proceed if we haven't checked geolocation yet
+        if ($this->is_allowed === null) {
+            // Look for form shortcodes or HTML
+            if (
+                strpos($content, '[formidable') !== false || 
+                strpos($content, '[display-frm-data') !== false ||
+                strpos($content, 'class="frm_forms') !== false ||
+                strpos($content, 'class="frm-show-form') !== false
+            ) {
+                // Form detected, check geolocation
+                AQM_Security_API::debug_log('Form detected in content, checking geolocation');
+                $this->check_geolocation();
+            }
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Detect forms in shortcodes and trigger geolocation check if needed
+     * 
+     * @param string $content The shortcode content
+     * @param array $shortcode_atts The shortcode attributes
+     * @return string The original content
+     */
+    public function detect_form_in_shortcode($content, $shortcode_atts) {
+        // Only proceed if we haven't checked geolocation yet
+        if ($this->is_allowed === null) {
+            AQM_Security_API::debug_log('Form shortcode detected, checking geolocation');
+            $this->check_geolocation();
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Detect form and check geolocation when a form is being displayed
+     * 
+     * @param mixed $form The form to be displayed
+     * @param mixed $extra Additional parameters
+     * @return mixed The original form
+     */
+    public function detect_form_and_check_geolocation($form, $extra = null) {
+        // Only proceed if we haven't checked geolocation yet
+        if ($this->is_allowed === null) {
+            AQM_Security_API::debug_log('Form detected, checking geolocation');
+            $this->check_geolocation();
+        }
+        
+        return $form;
     }
     
     /**
@@ -199,13 +206,59 @@ class AQM_Security_Public {
             
             // Additional logging to help troubleshoot IP blocking
             $visitor_ip = isset($visitor['ip']) ? $visitor['ip'] : 'unknown';
-            error_log("[AQM Security] Visitor IP checked: $visitor_ip - Access allowed: " . 
-                ($this->is_allowed ? 'Yes' : 'NO - BLOCKED!'));
             
+            if ($this->is_allowed) {
+                AQM_Security_API::debug_log('ALLOWED: Visitor from IP: ' . $visitor_ip);
+                
+                // Ensure forms are visible
+                $this->restore_formidable_forms();
+            } else {
+                AQM_Security_API::debug_log('BLOCKED: Visitor from IP: ' . $visitor_ip);
+                
+                // Apply form blocking rules
+                $this->apply_formidable_visibility(false);
+                
+                // Force CSS to be added to head to hide forms
+                add_action('wp_head', array($this, 'add_blocked_form_styles'), 1);
+                
+                // Add stronger direct output of CSS right away
+                add_action('wp_print_styles', function() {
+                    echo '<style type="text/css">
+                        .aqm-security-blocked-message {
+                            padding: 15px !important;
+                            background-color: #f8d7da !important;
+                            color: #721c24 !important;
+                            border: 1px solid #f5c6cb !important;
+                            border-radius: 4px !important;
+                            margin: 10px 0 !important;
+                            font-size: 16px !important;
+                            text-align: center !important;
+                        }
+                        
+                        /* Hide ANY forms that might slip through with !important flags */
+                        .frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form, 
+                        .frm_js_validation, .frm_logic_form, .frm_page_num_form, .frm_no_hide_form, 
+                        .frm_form_field, .frm-show-form, .frm_first_form, form.frm-show-form { 
+                            display: none !important; 
+                            visibility: hidden !important;
+                            opacity: 0 !important;
+                            height: 0 !important;
+                            overflow: hidden !important;
+                        }
+                    </style>';
+                }, 1);
+                
+                // Log the form blocking
+                error_log("[AQM Security] Forms blocked for visitor with IP: " . AQM_Security_API::get_client_ip());
+            }
+            
+            // Return whether the visitor is allowed
             return $this->is_allowed;
         } catch (Exception $e) {
-            // Default to allowing access in case of errors
-            AQM_Security_API::debug_log('Error checking geolocation: ' . $e->getMessage());
+            // Log any errors during geolocation check
+            error_log('[AQM Security] Error in check_geolocation: ' . $e->getMessage());
+            
+            // Default to allowing access if an error occurs
             $this->is_allowed = true;
             return $this->is_allowed;
         }
