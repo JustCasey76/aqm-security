@@ -169,7 +169,9 @@ class AQM_Security_Public {
             // Skip all checks for admin users when not in test mode
             if (current_user_can('manage_options') && !$test_mode) {
                 $this->is_allowed = true;
-                $this->log_visitor_access($test_mode);
+                // Make sure to pass the visitor data for proper logging
+                $visitor = AQM_Security_API::get_visitor_geolocation(true);
+                $this->log_visitor_access($test_mode, $visitor);
                 return $this->is_allowed;
             }
             
@@ -564,6 +566,11 @@ class AQM_Security_Public {
         
         // Admin users always allowed
         if (current_user_can('manage_options')) {
+            $this->is_allowed = true;
+            // Ensure admin users are logged when checked through this method
+            $test_mode = get_option('aqm_security_test_mode', false);
+            $visitor = AQM_Security_API::get_visitor_geolocation(true);
+            $this->log_visitor_access($test_mode, $visitor);
             return true;
         }
         
