@@ -411,45 +411,49 @@ class AQM_Security_Public {
      * @return bool Whether logging was successful
      */
     public function log_visitor_access($is_test_mode = false, $visitor = null) {
-        // If no visitor data was passed, get it
-        if ($visitor === null) {
-            $api = new AQM_Security_API();
-            $visitor = $api->get_visitor_geolocation($is_test_mode);
-        }
-        
-        // If still no visitor data, log error and return
-        if (!$visitor || empty($visitor)) {
-            AQM_Security_API::debug_log('Failed to get visitor data for logging');
+        try {
+            // Skip logging for admin pages
+            if (is_admin()) {
+                return false;
+            }
+            
+            // If visitor data wasn't passed, try to get it from the instance variable
+            if (empty($visitor)) {
+                if (isset($this->geo_data) && !empty($this->geo_data)) {
+                    $visitor = $this->geo_data;
+                } else {
+                    // Try to get visitor data if we don't have it yet
+                    $visitor = AQM_Security_API::get_visitor_geolocation(true);
+                }
+            }
+            
+            // If we don't have visitor data, we can't log
+            if (empty($visitor)) {
+                error_log("[AQM Security] Error: Cannot log visitor access - no visitor data.");
+                return false;
+            }
+            
+            // Check if the visitor is allowed if not already determined
+            if ($this->is_allowed === null) {
+                $this->is_allowed = AQM_Security_API::is_visitor_allowed($visitor);
+            }
+            
+            // Log the visitor with their current status
+            $result = AQM_Security_Logger::log_visitor(
+                $visitor['ip'],
+                isset($visitor['country']) ? $visitor['country'] : '',
+                isset($visitor['region']) ? $visitor['region'] : '',
+                isset($visitor['zip']) ? $visitor['zip'] : '',
+                $this->is_allowed,
+                isset($visitor['location']['country_flag']) ? $visitor['location']['country_flag'] : '',
+                false // Always update existing records, never force new entries
+            );
+            
+            return ($result !== false);
+        } catch (Exception $e) {
+            error_log("[AQM Security] Error logging visitor access: " . $e->getMessage());
             return false;
         }
-        
-        // Check if visitor is allowed if not already set
-        if ($this->is_allowed === null) {
-            $this->is_allowed = AQM_Security_API::is_visitor_allowed($visitor);
-        }
-
-        // Get flag URL
-        $flag_url = isset($visitor['location']['country_flag']) ? $visitor['location']['country_flag'] : '';
-        
-        // Write to log file to help with debugging
-        error_log("[AQM Security] Logging visitor: IP=" . 
-            (isset($visitor['ip']) ? $visitor['ip'] : 'Unknown') . 
-            ", Country=" . (isset($visitor['country']) ? $visitor['country'] : 'Unknown') .
-            ", Mode=" . ($is_test_mode ? 'Test' : 'Normal') . 
-            ", Allowed=" . ($this->is_allowed ? 'Yes' : 'No'));
-        
-        // Log visitor (our updated logger will handle creating a new entry or updating an existing one)
-        $result = AQM_Security_Logger::log_visitor(
-            isset($visitor['ip']) ? $visitor['ip'] : '0.0.0.0',
-            isset($visitor['country']) ? $visitor['country'] : 'Unknown',
-            isset($visitor['region']) ? $visitor['region'] : 'Unknown',
-            isset($visitor['zip']) ? $visitor['zip'] : 'Unknown',
-            $this->is_allowed,
-            $flag_url,
-            $is_test_mode // Force new log entry only for test mode
-        );
-
-        return $result !== false;
     }
     
     /**

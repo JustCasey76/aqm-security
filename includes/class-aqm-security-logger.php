@@ -61,21 +61,11 @@ class AQM_Security_Logger {
         // Debug logging
         error_log("[AQM Security] Logging visitor: IP=$ip, Country=$country, Region=$region, Test Mode=" . ($test_mode ? 'Yes' : 'No'));
         
-        // First, check if this visitor has been logged recently (in the past hour),
-        // unless we're forcing a new entry
-        if (!$force_new) {
-            $one_hour_ago = date('Y-m-d H:i:s', strtotime('-1 hour'));
-            $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $table_name WHERE ip = %s AND timestamp > %s",
-                $ip,
-                $one_hour_ago
-            ));
-            
-            if ($existing > 0) {
-                error_log("[AQM Security] Skipping log entry - recent entry exists for IP: $ip");
-                return false;
-            }
-        }
+        // Check for any existing log entry for this IP, ignoring time
+        $existing_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $table_name WHERE ip = %s ORDER BY id DESC LIMIT 1",
+            $ip
+        ));
         
         // Prepare data for database
         $data = array(
@@ -98,17 +88,37 @@ class AQM_Security_Logger {
             '%s'  // timestamp
         );
         
-        // Insert into database
-        $result = $wpdb->insert($table_name, $data, $format);
-        
-        if ($result === false) {
-            error_log("[AQM Security] Failed to log visitor. Database error: " . $wpdb->last_error);
-            return false;
+        // If an existing entry is found, update it instead of creating a new one
+        if ($existing_id) {
+            error_log("[AQM Security] Updating existing log entry for IP: $ip (ID: $existing_id)");
+            
+            $result = $wpdb->update(
+                $table_name,
+                $data,
+                array('id' => $existing_id),
+                $format,
+                array('%d') // id format
+            );
+            
+            if ($result === false) {
+                error_log("[AQM Security] Failed to update visitor log. Database error: " . $wpdb->last_error);
+                return false;
+            }
+            
+            error_log("[AQM Security] Successfully updated log entry for IP: $ip (ID: $existing_id)");
+            return $existing_id;
+        } else {
+            // No existing entry, insert a new one
+            $result = $wpdb->insert($table_name, $data, $format);
+            
+            if ($result === false) {
+                error_log("[AQM Security] Failed to log visitor. Database error: " . $wpdb->last_error);
+                return false;
+            }
+            
+            error_log("[AQM Security] Successfully logged visitor with ID: " . $wpdb->insert_id);
+            return $wpdb->insert_id;
         }
-        
-        error_log("[AQM Security] Successfully logged visitor with ID: " . $wpdb->insert_id);
-        
-        return $wpdb->insert_id;
     }
     
     /**
