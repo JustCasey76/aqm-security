@@ -164,24 +164,179 @@ class AQM_Security_Logger {
      * @param string $date Date to get logs for (Y-m-d format)
      * @param int $limit Number of results to return
      * @param int $offset Offset for pagination
+     * @param array $filters Optional associative array of filter criteria
      * @return array Array of log entries
      */
-    public static function get_logs($date, $limit = 1000, $offset = 0) {
+    public static function get_logs($date, $limit = 1000, $offset = 0, $filters = array()) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         
+        // Start building the WHERE clause
+        $where_clauses = array();
+        $query_args = array();
+        
+        // Always include date filter
+        if (!empty($date)) {
+            $where_clauses[] = "DATE(timestamp) = %s";
+            $query_args[] = $date;
+        }
+        
+        // Process additional filters
+        if (!empty($filters)) {
+            // IP filter (supports partial matches)
+            if (!empty($filters['ip'])) {
+                $where_clauses[] = "ip LIKE %s";
+                $query_args[] = '%' . $wpdb->esc_like($filters['ip']) . '%';
+            }
+            
+            // Country filter (exact match)
+            if (!empty($filters['country'])) {
+                $where_clauses[] = "country = %s";
+                $query_args[] = $filters['country'];
+            }
+            
+            // Region filter (exact match)
+            if (!empty($filters['region'])) {
+                $where_clauses[] = "region = %s";
+                $query_args[] = $filters['region'];
+            }
+            
+            // Zipcode filter (exact match)
+            if (!empty($filters['zipcode'])) {
+                $where_clauses[] = "zipcode = %s";
+                $query_args[] = $filters['zipcode'];
+            }
+            
+            // Status filter (allowed/blocked)
+            if (isset($filters['allowed']) && $filters['allowed'] !== '') {
+                $where_clauses[] = "allowed = %d";
+                $query_args[] = (int)$filters['allowed'];
+            }
+        }
+        
+        // Build the final WHERE clause
+        $where_clause = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
+        
+        // Add limit and offset to query args
+        $query_args[] = $limit;
+        $query_args[] = $offset;
+        
+        // Prepare and execute the query
         $sql = $wpdb->prepare(
-            "SELECT id, ip, country, region, zipcode, allowed, flag_url, 
-            timestamp 
-            FROM {$table_name} WHERE DATE(timestamp) = %s 
-            ORDER BY timestamp DESC LIMIT %d OFFSET %d",
-            $date,
-            $limit,
-            $offset
+            "SELECT id, ip, country, region, zipcode, allowed, flag_url, timestamp 
+            FROM {$table_name} 
+            {$where_clause} 
+            ORDER BY timestamp DESC 
+            LIMIT %d OFFSET %d",
+            $query_args
         );
         
         return $wpdb->get_results($sql, ARRAY_A);
+    }
+    
+    /**
+     * Count total logs matching filter criteria
+     *
+     * @param string $date Date to get logs for (Y-m-d format)
+     * @param array $filters Optional associative array of filter criteria
+     * @return int Total number of matching log entries
+     */
+    public static function count_logs($date, $filters = array()) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        
+        // Start building the WHERE clause
+        $where_clauses = array();
+        $query_args = array();
+        
+        // Always include date filter
+        if (!empty($date)) {
+            $where_clauses[] = "DATE(timestamp) = %s";
+            $query_args[] = $date;
+        }
+        
+        // Process additional filters
+        if (!empty($filters)) {
+            // IP filter (supports partial matches)
+            if (!empty($filters['ip'])) {
+                $where_clauses[] = "ip LIKE %s";
+                $query_args[] = '%' . $wpdb->esc_like($filters['ip']) . '%';
+            }
+            
+            // Country filter (exact match)
+            if (!empty($filters['country'])) {
+                $where_clauses[] = "country = %s";
+                $query_args[] = $filters['country'];
+            }
+            
+            // Region filter (exact match)
+            if (!empty($filters['region'])) {
+                $where_clauses[] = "region = %s";
+                $query_args[] = $filters['region'];
+            }
+            
+            // Zipcode filter (exact match)
+            if (!empty($filters['zipcode'])) {
+                $where_clauses[] = "zipcode = %s";
+                $query_args[] = $filters['zipcode'];
+            }
+            
+            // Status filter (allowed/blocked)
+            if (isset($filters['allowed']) && $filters['allowed'] !== '') {
+                $where_clauses[] = "allowed = %d";
+                $query_args[] = (int)$filters['allowed'];
+            }
+        }
+        
+        // Build the final WHERE clause
+        $where_clause = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
+        
+        // Prepare and execute the query
+        $sql = $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_name} {$where_clause}",
+            $query_args
+        );
+        
+        return (int)$wpdb->get_var($sql);
+    }
+    
+    /**
+     * Get unique values for a column to populate filter dropdowns
+     *
+     * @param string $column Column to get unique values for
+     * @param string $date Optional date filter
+     * @return array Array of unique values
+     */
+    public static function get_unique_values($column, $date = '') {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $column = sanitize_sql_orderby($column);
+        
+        // Make sure column is valid
+        $valid_columns = array('ip', 'country', 'region', 'zipcode', 'allowed');
+        if (!in_array($column, $valid_columns)) {
+            return array();
+        }
+        
+        $sql = "SELECT DISTINCT {$column} FROM {$table_name}";
+        $args = array();
+        
+        // Add date filter if provided
+        if (!empty($date)) {
+            $sql .= " WHERE DATE(timestamp) = %s";
+            $args[] = $date;
+        }
+        
+        $sql .= " ORDER BY {$column} ASC";
+        
+        if (!empty($args)) {
+            $sql = $wpdb->prepare($sql, $args);
+        }
+        
+        return $wpdb->get_col($sql);
     }
     
     /**
