@@ -17,6 +17,13 @@ class AQM_Security_Public {
      * @var bool|null
      */
     private $is_allowed = null;
+    
+    /**
+     * Whether the current page has forms
+     * 
+     * @var bool|null
+     */
+    private $has_forms = null;
 
     /**
      * Initialize the class and set its properties.
@@ -32,6 +39,7 @@ class AQM_Security_Public {
         // Initialize properties
         $this->is_allowed = null;
         $this->geo_data = null;
+        $this->has_forms = null;
         
         // Setup WP Rocket compatibility
         add_filter('rocket_cache_reject_uri', array($this, 'exclude_forms_from_cache'));
@@ -841,5 +849,99 @@ class AQM_Security_Public {
                 define('DONOTROCKETOPTIMIZE', true);
             }
         }
+    }
+
+    /**
+     * Check if the current page has forms
+     *
+     * @return bool Whether the page has forms
+     */
+    public function page_has_forms() {
+        // If we've already checked, return the cached result
+        if ($this->has_forms !== null) {
+            return $this->has_forms;
+        }
+        
+        // Default to false
+        $this->has_forms = false;
+        
+        // Get form patterns from options
+        $form_patterns = get_option('aqm_security_form_patterns', 'formidable');
+        
+        if (empty($form_patterns)) {
+            return $this->has_forms;
+        }
+        
+        // Convert patterns to array if it's a string
+        if (!is_array($form_patterns)) {
+            $form_patterns = explode(',', $form_patterns);
+        }
+        
+        // Clean up patterns
+        $patterns = array();
+        foreach ($form_patterns as $pattern) {
+            $pattern = trim($pattern);
+            if (!empty($pattern)) {
+                $patterns[] = $pattern;
+            }
+        }
+        
+        // If no valid patterns, return false
+        if (empty($patterns)) {
+            return $this->has_forms;
+        }
+        
+        // Check if we're on a page with Formidable Forms
+        if (class_exists('FrmForm')) {
+            global $post;
+            
+            // Check post content if available
+            if ($post && !empty($post->post_content)) {
+                $content = $post->post_content;
+                
+                // Check for form shortcodes
+                if (stripos($content, '[formidable') !== false || 
+                    stripos($content, '[display-frm-data') !== false) {
+                    $this->has_forms = true;
+                    return true;
+                }
+                
+                // Check for pattern matches in content
+                foreach ($patterns as $pattern) {
+                    if (stripos($content, $pattern) !== false) {
+                        $this->has_forms = true;
+                        return true;
+                    }
+                }
+            }
+            
+            // Check if Formidable Forms is in use on this page
+            if (defined('DOING_AJAX') && DOING_AJAX && 
+                isset($_POST['action']) && strpos($_POST['action'], 'frm_') === 0) {
+                $this->has_forms = true;
+                return true;
+            }
+            
+            // Check for form-specific query parameters
+            if (isset($_GET['frm-page-num']) || isset($_GET['frm_action'])) {
+                $this->has_forms = true;
+                return true;
+            }
+        }
+        
+        // For any other form types, check common URL patterns
+        if (strpos($_SERVER['REQUEST_URI'], 'wp-json/frm/') !== false || 
+            (isset($_GET['action']) && strpos($_GET['action'], 'form') !== false)) {
+            $this->has_forms = true;
+            return true;
+        }
+        
+        // If we're submitting a form via POST
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
+            $this->has_forms = true;
+            return true;
+        }
+        
+        return $this->has_forms;
     }
 }
