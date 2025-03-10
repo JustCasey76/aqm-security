@@ -72,10 +72,16 @@ class AQM_Security_API {
             return array(
                 'ip' => !empty($ip) ? $ip : self::get_client_ip(),
                 'country_code' => 'US',
+                'country_name' => 'United States',
                 'region_code' => 'CA',
+                'region' => 'California',
                 'zip' => '90210',
                 'latitude' => 34.0901,
-                'longitude' => -118.4065
+                'longitude' => -118.4065,
+                'location' => array(
+                    'country_flag' => 'https://flagcdn.com/w80/us.png',
+                    'country_flag_emoji' => '🇺🇸',
+                )
             );
         }
         
@@ -112,7 +118,7 @@ class AQM_Security_API {
         $api_url = add_query_arg(
             array(
                 'access_key' => $api_key,
-                'fields' => 'country_code,region_code,zip,latitude,longitude',
+                'fields' => 'country_code,country_name,region_code,region,zip,latitude,longitude,location',
             ),
             'https://api.ipapi.com/api/' . urlencode($ip)
         );
@@ -143,6 +149,28 @@ class AQM_Security_API {
                 'api_error',
                 $data['error']['info'] ?? __('Unknown API error', 'aqm-security'),
                 $data
+            );
+        }
+        
+        // Make sure required fields are available
+        if (!isset($data['country_code'])) {
+            // Some essential fields are missing, enhance the data
+            if (isset($data['country'])) {
+                $data['country_code'] = $data['country']['code'] ?? '';
+                $data['country_name'] = $data['country']['name'] ?? '';
+            }
+            
+            if (isset($data['region'])) {
+                $data['region_code'] = $data['region']['code'] ?? '';
+                $data['region'] = $data['region']['name'] ?? '';
+            }
+        }
+        
+        // Ensure location data exists
+        if (!isset($data['location'])) {
+            $data['location'] = array(
+                'country_flag' => isset($data['country_code']) ? 'https://flagcdn.com/w80/' . strtolower($data['country_code']) . '.png' : '',
+                'country_flag_emoji' => isset($data['country_code']) ? self::get_country_flag_emoji($data['country_code']) : '',
             );
         }
         
@@ -558,5 +586,29 @@ class AQM_Security_API {
         
         // Log the action
         self::debug_log('Geolocation cache cleared');
+    }
+
+    /**
+     * Get country flag emoji from country code
+     * 
+     * @param string $country_code Two-letter country code
+     * @return string Flag emoji
+     */
+    public static function get_country_flag_emoji($country_code) {
+        if (empty($country_code)) {
+            return '';
+        }
+        
+        // Convert country code to uppercase
+        $country_code = strtoupper($country_code);
+        
+        // Convert each letter to the corresponding regional indicator symbol
+        $emoji = '';
+        for ($i = 0; $i < strlen($country_code); $i++) {
+            $char = ord($country_code[$i]) - ord('A') + ord('🇦');
+            $emoji .= mb_chr($char, 'UTF-8');
+        }
+        
+        return $emoji;
     }
 }
