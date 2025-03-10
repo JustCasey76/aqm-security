@@ -33,6 +33,12 @@ class AQM_Security_Public {
         $this->is_allowed = null;
         $this->geo_data = null;
         
+        // Setup WP Rocket compatibility
+        add_filter('rocket_cache_reject_uri', array($this, 'exclude_forms_from_cache'));
+        
+        // Add DONOTCACHEPAGE constant for pages with forms
+        add_action('template_redirect', array($this, 'maybe_prevent_caching'), 5);
+        
         // Initialize shortcodes first
         add_action('init', array($this, 'initialize_shortcodes'), 5);
         
@@ -790,5 +796,50 @@ class AQM_Security_Public {
     public function filter_form_content($content) {
         // Same as widget_text filter
         return $this->filter_form_widget_content($content);
+    }
+    
+    /**
+     * Exclude pages with Formidable Forms from WP Rocket caching
+     *
+     * @param array $uris URIs to exclude from caching
+     * @return array Modified URIs
+     */
+    public function exclude_forms_from_cache($uris) {
+        // Get form patterns from options
+        $form_patterns = get_option('aqm_security_form_patterns', 'formidable');
+        
+        if (!empty($form_patterns)) {
+            // Add the current page if it contains forms
+            global $wp;
+            $current_uri = home_url($wp->request);
+            
+            if ($this->page_has_forms()) {
+                $uris[] = str_replace(home_url(), '', $current_uri);
+                AQM_Security_API::debug_log('Excluding URI from WP Rocket cache: ' . $current_uri);
+            }
+            
+            // Add form submission endpoints
+            $uris[] = '/wp-json/frm/(.*)';
+            $uris[] = '/wp-admin/admin-ajax.php';
+        }
+        
+        return $uris;
+    }
+    
+    /**
+     * Set DONOTCACHEPAGE constant for pages with forms
+     */
+    public function maybe_prevent_caching() {
+        if ($this->page_has_forms()) {
+            if (!defined('DONOTCACHEPAGE')) {
+                define('DONOTCACHEPAGE', true);
+            }
+            AQM_Security_API::debug_log('Set DONOTCACHEPAGE constant for form page');
+            
+            // Also set WP Rocket specific constants if available
+            if (!defined('DONOTROCKETOPTIMIZE')) {
+                define('DONOTROCKETOPTIMIZE', true);
+            }
+        }
     }
 }

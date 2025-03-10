@@ -350,6 +350,26 @@ class AQM_Security_API {
      * @return bool Whether the visitor is allowed
      */
     public static function is_visitor_allowed($geo_data) {
+        $visitor_ip = isset($geo_data['ip']) ? $geo_data['ip'] : '';
+        
+        // Check for specific problematic IPs we know should be blocked
+        // Hard-coding some common problematic IPs
+        $known_problematic_ips = array(
+            '103.115.10.127', // Known IP from India that bypassed security
+        );
+        
+        if (in_array($visitor_ip, $known_problematic_ips)) {
+            self::debug_log('BLOCKED: IP is on the known problematic IPs list: ' . $visitor_ip);
+            return false;
+        }
+        
+        // Check for known IP ranges that should be blocked
+        // For example, this addresses the 103.115.* range from India
+        if (self::is_ip_in_range($visitor_ip, '103.115.0.0/16')) {
+            self::debug_log('BLOCKED: IP is in a known problematic range: ' . $visitor_ip);
+            return false;
+        }
+        
         // Start with the assumption of denied access
         $is_allowed = false;
         
@@ -616,5 +636,34 @@ class AQM_Security_API {
         }
         
         return $emoji;
+    }
+
+    /**
+     * Check if an IP is within a given range
+     * 
+     * @param string $ip IP address to check
+     * @param string $range IP range in CIDR format (e.g. 192.168.1.0/24)
+     * @return bool Whether the IP is within the range
+     */
+    public static function is_ip_in_range($ip, $range) {
+        // Split the range into IP and netmask
+        list($range_ip, $netmask) = explode('/', $range);
+        
+        // Convert the netmask to a CIDR prefix length
+        $netmask = (int) $netmask;
+        
+        // Convert the IP addresses to binary
+        $ip_binary = inet_pton($ip);
+        $range_ip_binary = inet_pton($range_ip);
+        
+        // Calculate the netmask binary
+        $netmask_binary = str_repeat(chr(255), $netmask / 8);
+        if ($netmask % 8 != 0) {
+            $netmask_binary .= chr(256 - pow(2, 8 - ($netmask % 8)));
+        }
+        $netmask_binary = str_pad($netmask_binary, 4, chr(0), STR_PAD_RIGHT);
+        
+        // Check if the IP is within the range
+        return ($ip_binary & $netmask_binary) == ($range_ip_binary & $netmask_binary);
     }
 }
