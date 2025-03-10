@@ -118,7 +118,8 @@ class AQM_Security_API {
         $api_url = add_query_arg(
             array(
                 'access_key' => $api_key,
-                'fields' => 'country_code,country_name,region_code,region,zip,latitude,longitude,location',
+                // Use only valid fields supported by the API
+                'fields' => 'country_code,country_name,region_code,region_name,zip,latitude,longitude',
             ),
             'https://api.ipapi.com/api/' . urlencode($ip)
         );
@@ -162,8 +163,13 @@ class AQM_Security_API {
             
             if (isset($data['region'])) {
                 $data['region_code'] = $data['region']['code'] ?? '';
-                $data['region'] = $data['region']['name'] ?? '';
+                $data['region'] = $data['region_name'] ?? $data['region']['name'] ?? '';
             }
+        }
+        
+        // If we have region_name but not region, use region_name for region
+        if (isset($data['region_name']) && (!isset($data['region']) || empty($data['region']))) {
+            $data['region'] = $data['region_name'];
         }
         
         // Ensure location data exists
