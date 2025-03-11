@@ -49,15 +49,16 @@ class AQM_GitHub_Updater {
         $defaults = [
             'slug' => plugin_basename(__FILE__),
             'proper_folder_name' => dirname(plugin_basename(__FILE__)),
-            'api_url' => 'https://api.github.com/repos/JustCasey76/aqm-security',
-            'raw_url' => 'https://raw.github.com/JustCasey76/aqm-security/main',
-            'github_url' => 'https://github.com/JustCasey76/aqm-security',
-            'zip_url' => 'https://github.com/JustCasey76/aqm-security/archive/main.zip',
+            'api_url' => 'https://api.github.com/repos/JustCasey76/aqm-plugins',
+            'raw_url' => 'https://raw.github.com/JustCasey76/aqm-plugins/main',
+            'github_url' => 'https://github.com/JustCasey76/aqm-plugins',
+            'zip_url' => 'https://github.com/JustCasey76/aqm-plugins/archive/main.zip',
             'sslverify' => true,
             'requires' => '5.6',
             'tested' => '6.4',
             'readme' => 'README.md',
             'access_token' => '',
+            'subdir' => '', // New parameter for plugin subdirectory within the repository
         ];
 
         $this->config = wp_parse_args($config, $defaults);
@@ -301,10 +302,37 @@ class AQM_GitHub_Updater {
             return $result;
         }
 
-        // Move the plugin to the correct folder
         global $wp_filesystem;
-        $wp_filesystem->move($result['destination'], WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name']);
-        $result['destination'] = WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name'];
+        
+        // If plugin is in a subdirectory within the repository, move it from there
+        if (!empty($this->config['subdir'])) {
+            $subdir_source = $result['destination'] . '/' . $this->config['subdir'];
+            
+            // Check if the subdirectory exists in the downloaded package
+            if ($wp_filesystem->exists($subdir_source)) {
+                // Create a temporary directory
+                $temp_dir = WP_PLUGIN_DIR . '/temp_' . time();
+                $wp_filesystem->mkdir($temp_dir);
+                
+                // Move plugin files from subdirectory to temp directory
+                $wp_filesystem->move($subdir_source, $temp_dir, true);
+                
+                // Delete the original extracted directory
+                $wp_filesystem->delete($result['destination'], true);
+                
+                // Move from temp directory to final destination
+                $wp_filesystem->move($temp_dir, WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name'], true);
+                $result['destination'] = WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name'];
+            } else {
+                // If subdirectory doesn't exist, handle the default case
+                $wp_filesystem->move($result['destination'], WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name']);
+                $result['destination'] = WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name'];
+            }
+        } else {
+            // Original behavior for non-subdirectory plugins
+            $wp_filesystem->move($result['destination'], WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name']);
+            $result['destination'] = WP_PLUGIN_DIR . '/' . $this->config['proper_folder_name'];
+        }
 
         // Activate the plugin again
         $activate = activate_plugin($this->basename);
@@ -349,8 +377,9 @@ class AQM_GitHub_Updater {
      * @param string $message Error message to log
      */
     private function log_error($message) {
+        // Only log if WP_DEBUG is enabled
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[AQM GitHub Updater] ' . $message);
+            error_log('AQM GitHub Updater: ' . $message);
         }
     }
 }
