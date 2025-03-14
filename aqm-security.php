@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: AQM Security
- * Plugin URI: https://github.com/JustCasey76/aqm-plugins/tree/main/aqm-security
+ * Plugin URI: https://github.com/JustCasey76/aqm-security
  * Description: Geolocation-based security plugin using ipapi.com to control access to Formidable Forms.
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: AQM
  * Author URI: https://justcasey76.com
  * Text Domain: aqm-security
@@ -21,7 +21,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('AQM_SECURITY_VERSION', '1.3.1');
+define('AQM_SECURITY_VERSION', '1.3.2');
 define('AQM_SECURITY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AQM_SECURITY_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -37,15 +37,15 @@ if (class_exists('AQM_GitHub_Updater')) {
     new AQM_GitHub_Updater([
         'slug' => plugin_basename(__FILE__),
         'proper_folder_name' => 'aqm-security',
-        'api_url' => 'https://api.github.com/repos/JustCasey76/aqm-plugins',
-        'raw_url' => 'https://raw.githubusercontent.com/JustCasey76/aqm-plugins/main/aqm-security',
-        'github_url' => 'https://github.com/JustCasey76/aqm-plugins/tree/main/aqm-security',
-        'zip_url' => 'https://github.com/JustCasey76/aqm-plugins/archive/main.zip',
+        'api_url' => 'https://api.github.com/repos/JustCasey76/aqm-security',
+        'raw_url' => 'https://raw.githubusercontent.com/JustCasey76/aqm-security/master',
+        'github_url' => 'https://github.com/JustCasey76/aqm-security',
+        'zip_url' => 'https://github.com/JustCasey76/aqm-security/archive/master.zip',
         'sslverify' => true,
         'requires' => '5.6',
         'tested' => '6.4',
         'readme' => 'README.md',
-        'subdir' => 'aqm-security', 
+        'access_token' => '',
     ]);
 }
 
