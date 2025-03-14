@@ -99,9 +99,13 @@ class AQM_GitHub_Updater {
         // Use GitHub API v3 to get the latest release info
         $request_uri = $this->config['api_url'] . '/releases/latest';
         
+        // Log the API request for debugging
+        $this->log_error("Making GitHub API request to: {$request_uri}");
+        
         // Set headers for GitHub API request
         $request_headers = [];
         $request_headers[] = 'Accept: application/vnd.github.v3+json';
+        $request_headers[] = 'User-Agent: WordPress/' . get_bloginfo('version') . '; ' . get_bloginfo('url');
         
         // Use access token if available
         if (!empty($this->config['access_token'])) {
@@ -111,7 +115,8 @@ class AQM_GitHub_Updater {
         // Build the request arguments
         $request_args = [
             'headers' => $request_headers,
-            'sslverify' => $this->config['sslverify']
+            'sslverify' => $this->config['sslverify'],
+            'timeout' => 10
         ];
 
         // Make the request
@@ -127,6 +132,8 @@ class AQM_GitHub_Updater {
         $response_code = wp_remote_retrieve_response_code($response);
         if ($response_code !== 200) {
             $this->log_error("GitHub API returned non-200 status code: {$response_code}");
+            $body = wp_remote_retrieve_body($response);
+            $this->log_error("Response body: " . substr($body, 0, 500));
             return;
         }
 
@@ -136,10 +143,13 @@ class AQM_GitHub_Updater {
 
         // Check if we got valid data
         if (empty($release_data) || !is_object($release_data)) {
-            $this->log_error('Invalid GitHub API response: ' . substr($response_body, 0, 150) . '...');
+            $this->log_error('Invalid GitHub API response: ' . substr($response_body, 0, 300) . '...');
             return;
         }
 
+        // Log successful API response
+        $this->log_error("Successfully retrieved GitHub release data. Tag name: " . (isset($release_data->tag_name) ? $release_data->tag_name : 'Tag not found'));
+        
         // Force refresh transients when manually checking
         if (isset($_GET['action']) && $_GET['action'] === 'check_for_updates' && 
             isset($_GET['plugin']) && $_GET['plugin'] === $this->basename) {
@@ -169,49 +179,57 @@ class AQM_GitHub_Updater {
         $this->get_repository_info();
 
         // Check if a new version is available
-        if (isset($this->github_response->tag_name) && version_compare($this->github_response->tag_name, AQM_SECURITY_VERSION, '>')) {
-            $download_link = isset($this->github_response->zipball_url) 
-                ? $this->github_response->zipball_url 
-                : $this->github_response->tarball_url;
-
-            // Add authorization to download URL if token is available
-            if (!empty($this->config['access_token'])) {
-                $download_link = add_query_arg(
-                    ['access_token' => $this->config['access_token']],
-                    $download_link
-                );
-            }
-
-            $obj = new stdClass();
-            $obj->slug = $this->slug;
-            $obj->new_version = $this->github_response->tag_name;
-            $obj->url = $this->config['github_url'];
-            $obj->package = $download_link;
-            $obj->tested = $this->config['tested'];
-            $obj->requires = $this->config['requires'];
-            $obj->last_updated = isset($this->github_response->published_at) ? $this->github_response->published_at : date('Y-m-d');
+        if (isset($this->github_response->tag_name)) {
+            // GitHub releases have 'v' prefix (v1.3.4) but our versions don't (1.3.4)
+            $tag_version = ltrim($this->github_response->tag_name, 'v');
             
-            // Add plugin info to transient
-            $transient->response[$this->basename] = $obj;
+            // Log version comparison for debugging
+            $this->log_error("Comparing versions: GitHub tag: {$this->github_response->tag_name}, Cleaned tag: {$tag_version}, Current version: " . AQM_SECURITY_VERSION . ", Result: " . (version_compare($tag_version, AQM_SECURITY_VERSION, '>') ? 'Update Available' : 'No Update Needed'));
+            
+            if (version_compare($tag_version, AQM_SECURITY_VERSION, '>')) {
+                $download_link = isset($this->github_response->zipball_url) 
+                    ? $this->github_response->zipball_url 
+                    : $this->github_response->tarball_url;
 
-            // Log successful update check
-            $this->log_error("Update available: {$obj->new_version}");
-        } else {
-            // If no update is available, remove from response to avoid confusion
-            if (isset($transient->response[$this->basename])) {
-                unset($transient->response[$this->basename]);
-            }
+                // Add authorization to download URL if token is available
+                if (!empty($this->config['access_token'])) {
+                    $download_link = add_query_arg(
+                        ['access_token' => $this->config['access_token']],
+                        $download_link
+                    );
+                }
 
-            // Add to no_update list for clarity
-            if (!isset($transient->no_update[$this->basename])) {
                 $obj = new stdClass();
                 $obj->slug = $this->slug;
-                $obj->plugin = $this->basename;
-                $obj->new_version = AQM_SECURITY_VERSION;
+                $obj->new_version = $this->github_response->tag_name;
                 $obj->url = $this->config['github_url'];
-                $obj->package = '';
+                $obj->package = $download_link;
                 $obj->tested = $this->config['tested'];
-                $transient->no_update[$this->basename] = $obj;
+                $obj->requires = $this->config['requires'];
+                $obj->last_updated = isset($this->github_response->published_at) ? $this->github_response->published_at : date('Y-m-d');
+                
+                // Add plugin info to transient
+                $transient->response[$this->basename] = $obj;
+
+                // Log successful update check
+                $this->log_error("Update available: {$obj->new_version}");
+            } else {
+                // If no update is available, remove from response to avoid confusion
+                if (isset($transient->response[$this->basename])) {
+                    unset($transient->response[$this->basename]);
+                }
+
+                // Add to no_update list for clarity
+                if (!isset($transient->no_update[$this->basename])) {
+                    $obj = new stdClass();
+                    $obj->slug = $this->slug;
+                    $obj->plugin = $this->basename;
+                    $obj->new_version = AQM_SECURITY_VERSION;
+                    $obj->url = $this->config['github_url'];
+                    $obj->package = '';
+                    $obj->tested = $this->config['tested'];
+                    $transient->no_update[$this->basename] = $obj;
+                }
             }
         }
 
@@ -372,14 +390,21 @@ class AQM_GitHub_Updater {
     }
 
     /**
-     * Log errors for debugging
-     *
+     * Log error messages for debugging
+     * 
      * @param string $message Error message to log
      */
     private function log_error($message) {
-        // Only log if WP_DEBUG is enabled
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('AQM GitHub Updater: ' . $message);
+        // Only save errors if WP_DEBUG is true
+        if (defined('WP_DEBUG') && WP_DEBUG === true) {
+            $log_file = WP_CONTENT_DIR . '/aqm-security-updater.log';
+            
+            // Include more context with each log message
+            $date = date('Y-m-d H:i:s');
+            $version = 'Plugin Version: ' . AQM_SECURITY_VERSION;
+            $api_url = 'API URL: ' . $this->config['api_url'];
+            
+            error_log("[{$date}] {$message} | {$version} | {$api_url}\n", 3, $log_file);
         }
     }
 }
