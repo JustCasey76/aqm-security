@@ -213,6 +213,18 @@ class AQM_Security_Logger {
                 $where_clauses[] = "allowed = %d";
                 $query_args[] = (int)$filters['allowed'];
             }
+            
+            // Time range filter - start time
+            if (!empty($filters['time_start'])) {
+                $where_clauses[] = "TIME(timestamp) >= %s";
+                $query_args[] = $filters['time_start'];
+            }
+            
+            // Time range filter - end time
+            if (!empty($filters['time_end'])) {
+                $where_clauses[] = "TIME(timestamp) <= %s";
+                $query_args[] = $filters['time_end'];
+            }
         }
         
         // Build the final WHERE clause
@@ -287,6 +299,18 @@ class AQM_Security_Logger {
             if (isset($filters['allowed']) && $filters['allowed'] !== '') {
                 $where_clauses[] = "allowed = %d";
                 $query_args[] = (int)$filters['allowed'];
+            }
+            
+            // Time range filter - start time
+            if (!empty($filters['time_start'])) {
+                $where_clauses[] = "TIME(timestamp) >= %s";
+                $query_args[] = $filters['time_start'];
+            }
+            
+            // Time range filter - end time
+            if (!empty($filters['time_end'])) {
+                $where_clauses[] = "TIME(timestamp) <= %s";
+                $query_args[] = $filters['time_end'];
             }
         }
         

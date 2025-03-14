@@ -11,7 +11,7 @@ $current_date = isset($_GET['date']) ? sanitize_text_field($_GET['date']) : date
 
 // Get filter parameters
 $filters = array();
-$filter_fields = array('ip', 'country', 'region', 'zipcode', 'allowed');
+$filter_fields = array('ip', 'country', 'region', 'zipcode', 'allowed', 'time_start', 'time_end');
 
 foreach ($filter_fields as $field) {
     if (isset($_GET[$field]) && $_GET[$field] !== '') {
@@ -67,6 +67,17 @@ $reset_url = add_query_arg(array(
                     
                     <!-- Filter Bar -->
                     <div style="display: inline-block; margin-left: 10px;">
+                        <!-- Time Range Filter -->
+                        <div style="display: inline-block; margin-right: 10px;">
+                            <input type="time" name="time_start" placeholder="<?php echo esc_attr__('Start Time', 'aqm-security'); ?>" 
+                                   value="<?php echo isset($filters['time_start']) ? esc_attr($filters['time_start']) : ''; ?>" 
+                                   style="width: 120px;" title="<?php echo esc_attr__('Start Time (EST)', 'aqm-security'); ?>">
+                            <span style="margin: 0 5px;">-</span>
+                            <input type="time" name="time_end" placeholder="<?php echo esc_attr__('End Time', 'aqm-security'); ?>" 
+                                   value="<?php echo isset($filters['time_end']) ? esc_attr($filters['time_end']) : ''; ?>" 
+                                   style="width: 120px;" title="<?php echo esc_attr__('End Time (EST)', 'aqm-security'); ?>">
+                        </div>
+                        
                         <!-- IP Address Filter -->
                         <input type="text" name="ip" placeholder="<?php echo esc_attr__('IP Address', 'aqm-security'); ?>" 
                                value="<?php echo isset($filters['ip']) ? esc_attr($filters['ip']) : ''; ?>" 
@@ -152,7 +163,9 @@ $reset_url = add_query_arg(array(
                                 'country' => __('Country', 'aqm-security'),
                                 'region' => __('Region', 'aqm-security'),
                                 'zipcode' => __('Zipcode', 'aqm-security'),
-                                'allowed' => __('Status', 'aqm-security')
+                                'allowed' => __('Status', 'aqm-security'),
+                                'time_start' => __('Start Time', 'aqm-security'),
+                                'time_end' => __('End Time', 'aqm-security')
                             );
                             
                             $active_filters = array();
@@ -160,6 +173,10 @@ $reset_url = add_query_arg(array(
                                 if ($key === 'allowed') {
                                     $status_value = $value == '1' ? __('Allowed', 'aqm-security') : __('Blocked', 'aqm-security');
                                     $active_filters[] = sprintf('%s: %s', $filter_labels[$key], $status_value);
+                                } else if ($key === 'time_start') {
+                                    $active_filters[] = sprintf('%s: %s', $filter_labels[$key], $value);
+                                } else if ($key === 'time_end') {
+                                    $active_filters[] = sprintf('%s: %s', $filter_labels[$key], $value);
                                 } else {
                                     $active_filters[] = sprintf('%s: %s', $filter_labels[$key], $value);
                                 }
