@@ -256,63 +256,12 @@ class AQM_Security_Public {
                 // Apply form blocking rules
                 $this->apply_formidable_visibility(false);
                 
-                // ENHANCED: Use wp_print_scripts hook which runs earlier than wp_head
-                add_action('wp_print_scripts', array($this, 'add_blocked_form_styles'), 1);
+                // Force CSS to be added to head to hide forms
+                add_action('wp_head', array($this, 'add_blocked_form_styles'), 1);
                 
-                // ENHANCED: Use output buffer to catch and replace any form HTML
-                ob_start(array($this, 'catch_and_replace_forms'));
-                
-                // ENHANCED: Add JavaScript as early as possible to ensure forms are hidden
-                add_action('wp_print_scripts', function() {
-                    echo '<script type="text/javascript">
-                    /* Immediately execute script to hide forms */
-                    (function() {
-                        function hideAllForms() {
-                            // Target all possible Formidable Forms elements
-                            var formElements = document.querySelectorAll(".frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form, .frm_js_validation, .frm_logic_form, .frm_page_num_form, .frm_no_hide_form, .frm_form_field, form.frm-show-form");
-                            
-                            // Hide each form
-                            for(var i = 0; i < formElements.length; i++) {
-                                formElements[i].style.display = "none";
-                                formElements[i].style.visibility = "hidden";
-                                formElements[i].style.opacity = "0";
-                                formElements[i].style.height = "0";
-                                formElements[i].style.overflow = "hidden";
-                                
-                                // Add a blocked message before the form
-                                var message = document.createElement("div");
-                                message.className = "aqm-security-blocked-message";
-                                message.innerHTML = "' . esc_js(get_option('aqm_security_blocked_message', 'Access to this form is restricted based on your location.')) . '";
-                                formElements[i].parentNode.insertBefore(message, formElements[i]);
-                            }
-                        }
-                        
-                        // Run on page load
-                        hideAllForms();
-                        
-                        // Also run after DOM is loaded to catch dynamically loaded forms
-                        document.addEventListener("DOMContentLoaded", hideAllForms);
-                        
-                        // Set up a MutationObserver to watch for new forms
-                        if(typeof MutationObserver !== "undefined") {
-                            var observer = new MutationObserver(function(mutations) {
-                                for(var i = 0; i < mutations.length; i++) {
-                                    if(mutations[i].addedNodes.length) {
-                                        hideAllForms();
-                                    }
-                                }
-                            });
-                            
-                            observer.observe(document.body, { childList: true, subtree: true });
-                        }
-                    })();
-                    </script>';
-                }, 1);
-                
-                // ENHANCED: Add stronger CSS rules with more specific selectors
+                // Add stronger direct output of CSS right away
                 add_action('wp_print_styles', function() {
                     echo '<style type="text/css">
-                        /* Blocked message styling */
                         .aqm-security-blocked-message {
                             padding: 15px !important;
                             background-color: #f8d7da !important;
@@ -322,39 +271,17 @@ class AQM_Security_Public {
                             margin: 10px 0 !important;
                             font-size: 16px !important;
                             text-align: center !important;
-                            display: block !important;
-                            visibility: visible !important;
-                            opacity: 1 !important;
                         }
                         
-                        /* Enhanced specificity for hiding forms */
-                        body .frm_forms, 
-                        body .frm_form_fields,
-                        body .with_frm_style,
-                        body .frm-show-form,
-                        body .frm_js_validation,
-                        body .frm_logic_form,
-                        body .frm_page_num_form,
-                        body .frm_no_hide_form,
-                        body .frm_form_field,
-                        body form.frm-show-form,
-                        div.frm_forms,
-                        div[class*="frm_form_"],
-                        form[class*="frm_form_"],
-                        html body .frm_forms,
-                        html body .with_frm_style { 
+                        /* Hide ANY forms that might slip through with !important flags */
+                        .frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form, 
+                        .frm_js_validation, .frm_logic_form, .frm_page_num_form, .frm_no_hide_form, 
+                        .frm_form_field, .frm-show-form, .frm_first_form, form.frm-show-form { 
                             display: none !important; 
                             visibility: hidden !important;
                             opacity: 0 !important;
                             height: 0 !important;
                             overflow: hidden !important;
-                            position: absolute !important;
-                            left: -9999px !important;
-                            max-height: 0 !important;
-                            max-width: 0 !important;
-                            padding: 0 !important;
-                            margin: 0 !important;
-                            border: 0 !important;
                         }
                     </style>';
                 }, 1);
@@ -449,11 +376,6 @@ class AQM_Security_Public {
             add_filter('frm_submit_button_html', '__return_false', 1);
             add_filter('frm_form_fields_html', array($this, 'prevent_form_display'), 1, 3);
             
-            // ENHANCED: Add more aggressive hooks to catch form rendering
-            add_filter('frm_before_display_form', array($this, 'prevent_form_display'), 1, 3);
-            add_filter('frm_filter_final_form', array($this, 'prevent_form_display'), 1, 3);
-            add_filter('frm_form_classes', '__return_empty_string', 1);
-            
             // 5. Add styles for the blocked form message
             add_action('wp_head', array($this, 'add_blocked_form_styles'), 1);
             
@@ -483,11 +405,6 @@ class AQM_Security_Public {
             remove_filter('frm_submit_button_html', '__return_false', 1);
             remove_filter('frm_form_fields_html', array($this, 'prevent_form_display'), 1);
             
-            // ENHANCED: Also remove our enhanced hooks
-            remove_filter('frm_before_display_form', array($this, 'prevent_form_display'), 1);
-            remove_filter('frm_filter_final_form', array($this, 'prevent_form_display'), 1);
-            remove_filter('frm_form_classes', '__return_empty_string', 1);
-            
             // Remove the blocking flag
             delete_option('aqm_security_forms_blocked');
             
@@ -509,39 +426,17 @@ class AQM_Security_Public {
                 margin: 10px 0 !important;
                 font-size: 16px !important;
                 text-align: center !important;
-                display: block !important;
-                visibility: visible !important;
-                opacity: 1 !important;
             }
             
-            /* Enhanced specificity for hiding forms */
-            body .frm_forms, 
-            body .frm_form_fields,
-            body .with_frm_style,
-            body .frm-show-form,
-            body .frm_js_validation,
-            body .frm_logic_form,
-            body .frm_page_num_form,
-            body .frm_no_hide_form,
-            body .frm_form_field,
-            body form.frm-show-form,
-            div.frm_forms,
-            div[class*="frm_form_"],
-            form[class*="frm_form_"],
-            html body .frm_forms,
-            html body .with_frm_style { 
+            /* Hide any Formidable Forms that might slip through with !important */
+            .frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form, 
+            .frm_js_validation, .frm_logic_form, .frm_page_num_form, .frm_no_hide_form, 
+            .frm_form_field, .frm-show-form, .frm_first_form, form.frm-show-form { 
                 display: none !important; 
                 visibility: hidden !important;
                 opacity: 0 !important;
                 height: 0 !important;
                 overflow: hidden !important;
-                position: absolute !important;
-                left: -9999px !important;
-                max-height: 0 !important;
-                max-width: 0 !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                border: 0 !important;
             }
         </style>';
     }
@@ -670,38 +565,35 @@ class AQM_Security_Public {
         // This inlines critical Safari-specific code to ensure forms are properly handled
         $safari_fix_script = "
             (function() {
-                // Wrap everything in a DOMContentLoaded event to ensure DOM is ready
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Detect Safari browser (excludes Chrome which also includes Safari in UA)
-                    var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                // Detect Safari browser (excludes Chrome which also includes Safari in UA)
+                var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                
+                if (isSafari) {
+                    // For Safari, add a class to the body for CSS targeting
+                    document.body.classList.add('aqm-safari-browser');
                     
-                    if (isSafari && document.body) {
-                        // For Safari, add a class to the body for CSS targeting
-                        document.body.classList.add('aqm-safari-browser');
+                    // Add a small delay to ensure forms are properly visible in Safari
+                    setTimeout(function() {
+                        // Find all form elements that might be hidden
+                        var forms = document.querySelectorAll('.frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form');
                         
-                        // Add a small delay to ensure forms are properly visible in Safari
-                        setTimeout(function() {
-                            // Find all form elements that might be hidden
-                            var forms = document.querySelectorAll('.frm_forms, .with_frm_style, .frm_form_fields, .frm-show-form');
-                            
-                            // If we detect allowed forms, ensure they're visible
-                            if (forms.length > 0 && !document.querySelector('.aqm-security-blocked-message')) {
-                                forms.forEach(function(form) {
-                                    form.style.display = 'block';
-                                    form.style.visibility = 'visible';
-                                    form.style.opacity = '1';
-                                    form.style.height = 'auto';
-                                    form.style.overflow = 'visible';
-                                });
-                            }
-                        }, 100);
-                    }
-                });
+                        // If we detect allowed forms, ensure they're visible
+                        if (forms.length > 0 && !document.querySelector('.aqm-security-blocked-message')) {
+                            forms.forEach(function(form) {
+                                form.style.display = 'block';
+                                form.style.visibility = 'visible';
+                                form.style.opacity = '1';
+                                form.style.height = 'auto';
+                                form.style.overflow = 'visible';
+                            });
+                        }
+                    }, 100);
+                }
             })();
         ";
         
-        // Add the inline script
-        wp_add_inline_script($this->plugin_name, $safari_fix_script);
+        // Directly print this script in the header to ensure it loads early
+        wp_add_inline_script($this->plugin_name, $safari_fix_script, 'after');
     }
     
     /**
@@ -1106,39 +998,5 @@ class AQM_Security_Public {
         }
         
         return $this->has_forms;
-    }
-    
-    /**
-     * NEW METHOD: Output buffer callback to catch and replace forms
-     * 
-     * @param string $buffer The page output buffer
-     * @return string Modified output buffer
-     */
-    public function catch_and_replace_forms($buffer) {
-        if ($this->is_allowed !== false) {
-            return $buffer;
-        }
-        
-        $blocked_message = get_option('aqm_security_blocked_message', 'Access to this form is restricted based on your location.');
-        $message_html = '<div class="aqm-security-blocked-message">' . esc_html($blocked_message) . '</div>';
-        
-        // Replace all instances of Formidable Forms with our blocked message
-        $patterns = array(
-            // Form classes and structure
-            '/<div[^>]*class=["\'][^"\']*frm[_-]form[^"\']*["\'][^>]*>.*?<\/form>/is',
-            '/<div[^>]*class=["\'][^"\']*frm_forms[^"\']*["\'][^>]*>.*?<\/div><\/div>/is',
-            '/<form[^>]*class=["\'][^"\']*frm[_-]form[^"\']*["\'][^>]*>.*?<\/form>/is',
-            // Shortcode remnants
-            '/\[formidable.*?\]/',
-            '/\[display-frm-data.*?\]/',
-            // Any hidden form remains
-            '/<div[^>]*class=["\'].*?frm_forms.*?["\'][^>]*>.*?<\/div>/is',
-        );
-        
-        foreach ($patterns as $pattern) {
-            $buffer = preg_replace($pattern, $message_html, $buffer);
-        }
-        
-        return $buffer;
     }
 }
