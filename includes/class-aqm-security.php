@@ -11,6 +11,24 @@ class AQM_Security {
      * @var AQM_Security_Loader $loader Maintains and registers all hooks for the plugin.
      */
     protected $loader;
+    
+    /**
+     * The name of the plugin.
+     *
+     * @since    1.0.0
+     * @access   public
+     * @var      string    $plugin_name    The name of the plugin.
+     */
+    public $plugin_name;
+    
+    /**
+     * The current version of the plugin.
+     *
+     * @since    1.0.0
+     * @access   public
+     * @var      string    $version    The current version of the plugin.
+     */
+    public $version;
 
     /**
      * Define the core functionality of the plugin.

@@ -5,6 +5,33 @@
 class AQM_Security_Public {
 
     /**
+     * The name of the plugin.
+     *
+     * @since    1.0.0
+     * @access   public
+     * @var      string    $plugin_name    The name of the plugin.
+     */
+    public $plugin_name;
+    
+    /**
+     * The current version of the plugin.
+     *
+     * @since    1.0.0
+     * @access   public
+     * @var      string    $version    The current version of the plugin.
+     */
+    public $version;
+    
+    /**
+     * Original Formidable Forms shortcode handler
+     *
+     * @since    1.3.6
+     * @access   public
+     * @var      callable    $original_formidable_shortcode    Original shortcode handler function
+     */
+    public $original_formidable_shortcode;
+
+    /**
      * Visitor geolocation data
      * 
      * @var array
