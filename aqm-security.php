@@ -23,7 +23,7 @@ if (!defined('WPINC')) {
 // Define plugin constants
 define('AQM_SECURITY_VERSION', '2.0.0');
 define('AQM_SECURITY_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('AQM_SECURITY_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('AQM_SECURITY_PLUGIN_URL', plugin_dir_url(__FILE__)); 
 
 /**
  * Include the GitHub Updater class if available
