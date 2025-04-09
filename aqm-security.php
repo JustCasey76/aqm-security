@@ -3,7 +3,7 @@
  * Plugin Name: AQM Security
  * Plugin URI: https://github.com/JustCasey76/aqm-security
  * Description: Geolocation-based security plugin using ipapi.com to control access to Formidable Forms.
- * Version: 2.0.0
+ * Version: 2.0.1
  * Author: AQM
  * Author URI: https://justcasey76.com
  * Text Domain: aqm-security
@@ -21,32 +21,35 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('AQM_SECURITY_VERSION', '2.0.0');
+define('AQM_SECURITY_VERSION', '2.0.1');
 define('AQM_SECURITY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AQM_SECURITY_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 /**
- * Include the GitHub Updater class if available
+ * Include the GitHub Updater class
+ * Use a unique class name to avoid conflicts with other plugins
  */
-if (!class_exists('AQM_GitHub_Updater')) {
-    require_once AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-github-updater.php';
-}
+require_once AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-github-updater.php';
 
-// Initialize GitHub Updater
-if (class_exists('AQM_GitHub_Updater')) {
-    new AQM_GitHub_Updater([
-        'slug' => plugin_basename(__FILE__),
-        'proper_folder_name' => 'aqm-security',
-        'api_url' => 'https://api.github.com/repos/JustCasey76/aqm-security',
-        'raw_url' => 'https://raw.githubusercontent.com/JustCasey76/aqm-security/master',
-        'github_url' => 'https://github.com/JustCasey76/aqm-security',
-        'zip_url' => 'https://github.com/JustCasey76/aqm-security/archive/master.zip',
-        'sslverify' => true,
-        'requires' => '5.6',
-        'tested' => '6.4',
-        'readme' => 'README.md',
-        'access_token' => '',
-    ]);
+// Initialize GitHub Updater with a unique class check to avoid conflicts
+if (class_exists('AQM_Security_GitHub_Updater')) {
+    // Make sure we're using our own updater class, not one from another plugin
+    $updater_class = AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-github-updater.php';
+    if (file_exists($updater_class)) {
+        $updater = new AQM_Security_GitHub_Updater([
+            'slug' => plugin_basename(__FILE__),
+            'proper_folder_name' => 'aqm-security',
+            'api_url' => 'https://api.github.com/repos/JustCasey76/aqm-security',
+            'raw_url' => 'https://raw.githubusercontent.com/JustCasey76/aqm-security/master',
+            'github_url' => 'https://github.com/JustCasey76/aqm-security',
+            'zip_url' => 'https://github.com/JustCasey76/aqm-security/archive/master.zip',
+            'sslverify' => true,
+            'requires' => '5.6',
+            'tested' => '6.4',
+            'readme' => 'README.md',
+            'access_token' => '',
+        ]);
+    }
 }
 
 // Include required files

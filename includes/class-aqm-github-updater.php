@@ -8,9 +8,9 @@
  * @subpackage AQM_Security/includes
  */
 
-if (!class_exists('AQM_GitHub_Updater')):
+if (!class_exists('AQM_Security_GitHub_Updater')):
 
-class AQM_GitHub_Updater {
+class AQM_Security_GitHub_Updater {
 
     /**
      * GitHub repository data
