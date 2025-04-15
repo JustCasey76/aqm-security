@@ -143,7 +143,7 @@ class AQM_Security_Admin {
             'aqm_security_api_section',
             __('API Settings', 'aqm-security'),
             array($this, 'render_api_section'),
-            'aqm_security_settings'
+            'aqm-security'
         );
         
         // Add API key field
@@ -151,7 +151,7 @@ class AQM_Security_Admin {
             'aqm_security_api_key',
             __('API Key', 'aqm-security'),
             array($this, 'render_api_key_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_api_section'
         );
         
@@ -160,7 +160,7 @@ class AQM_Security_Admin {
             'aqm_security_rules_section',
             __('Geolocation Rules', 'aqm-security'),
             array($this, 'render_rules_section'),
-            'aqm_security_settings'
+            'aqm-security'
         );
         
         // Add blocked IPs field
@@ -168,7 +168,7 @@ class AQM_Security_Admin {
             'aqm_security_blocked_ips',
             __('Blocked IP Addresses', 'aqm-security'),
             array($this, 'render_blocked_ips_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_rules_section'
         );
         
@@ -177,7 +177,7 @@ class AQM_Security_Admin {
             'aqm_security_allowed_countries',
             __('Allowed Countries', 'aqm-security'),
             array($this, 'render_allowed_countries_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_rules_section'
         );
         
@@ -186,7 +186,7 @@ class AQM_Security_Admin {
             'aqm_security_allowed_states',
             __('Allowed States/Regions', 'aqm-security'),
             array($this, 'render_allowed_states_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_rules_section'
         );
         
@@ -195,7 +195,7 @@ class AQM_Security_Admin {
             'aqm_security_allowed_zip_codes',
             __('Allowed ZIP Codes', 'aqm-security'),
             array($this, 'render_allowed_zip_codes_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_rules_section'
         );
         
@@ -204,7 +204,7 @@ class AQM_Security_Admin {
             'aqm_security_message_settings_section',
             __('Message Settings', 'aqm-security'),
             array($this, 'render_message_settings_section'),
-            'aqm_security_settings'
+            'aqm-security'
         );
         
         // Add blocked message field
@@ -212,7 +212,7 @@ class AQM_Security_Admin {
             'aqm_security_blocked_message',
             __('Blocked Message', 'aqm-security'),
             array($this, 'render_blocked_message_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_message_settings_section'
         );
         
@@ -221,7 +221,7 @@ class AQM_Security_Admin {
             'aqm_security_advanced_section',
             __('Advanced Settings', 'aqm-security'),
             array($this, 'render_advanced_section'),
-            'aqm_security_settings'
+            'aqm-security'
         );
         
         // Add debug field
@@ -229,7 +229,7 @@ class AQM_Security_Admin {
             'aqm_security_enable_debug',
             __('Enable Debug Logging', 'aqm-security'),
             array($this, 'render_enable_debug_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_advanced_section'
         );
         
@@ -238,7 +238,7 @@ class AQM_Security_Admin {
             'aqm_security_test_mode',
             __('Enable Test Mode', 'aqm-security'),
             array($this, 'render_test_mode_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_advanced_section'
         );
         
@@ -247,7 +247,7 @@ class AQM_Security_Admin {
             'aqm_security_test_ip',
             __('Test IP Address', 'aqm-security'),
             array($this, 'render_test_ip_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_advanced_section',
             array('class' => 'aqm-security-test-ip-field')
         );
@@ -257,7 +257,7 @@ class AQM_Security_Admin {
             'aqm_security_log_throttle',
             __('Visitor Logging Throttle', 'aqm-security'),
             array($this, 'render_log_throttle_field'),
-            'aqm_security_settings',
+            'aqm-security',
             'aqm_security_advanced_section'
         );
     }
@@ -522,7 +522,7 @@ class AQM_Security_Admin {
      * Render logging throttle field
      */
     public function render_log_throttle_field() {
-        $throttle_seconds = intval(get_option('aqm_security_log_throttle', 900));
+        $throttle_seconds = intval(get_option('aqm_security_log_throttle', 86400));
         
         // Create dropdown options for common time intervals
         $options = array(
@@ -563,7 +563,7 @@ class AQM_Security_Admin {
                 settings_fields('aqm_security_options');
                 
                 // Output setting sections and their fields
-                do_settings_sections('aqm_security_settings');
+                do_settings_sections('aqm-security');
                 
                 submit_button();
                 ?>

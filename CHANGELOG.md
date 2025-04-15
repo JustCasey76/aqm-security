@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.0.6 - April 15, 2025
+- Fixed Visitor Logging Throttle dropdown default to 24 hours instead of 15 minutes
+- Fixed settings page to properly save all settings
+- Standardized settings page and section names for consistency
+
 ## 2.0.5 - April 15, 2025
 - Fixed issue with Visitor Logging Throttle dropdown not saving settings
 - Standardized settings registration to use consistent option group
