@@ -1,5 +1,9 @@
 # AQM Security Plugin Changelog
 
+## 2.0.5 - April 15, 2025
+- Fixed issue with Visitor Logging Throttle dropdown not saving settings
+- Standardized settings registration to use consistent option group
+
 ## 2.0.4 - April 15, 2025
 - Removed non-functioning "Clear All Logs" button
 - Improved release package by excluding development files

@@ -118,16 +118,16 @@ class AQM_Security_Admin {
      */
     public function register_settings() {
         // Register settings
-        register_setting('aqm_security_settings', 'aqm_security_api_key');
-        register_setting('aqm_security_settings', 'aqm_security_blocked_ips');
-        register_setting('aqm_security_settings', 'aqm_security_allowed_countries');
-        register_setting('aqm_security_settings', 'aqm_security_allowed_states');
-        register_setting('aqm_security_settings', 'aqm_security_allowed_zip_codes');
-        register_setting('aqm_security_settings', 'aqm_security_enable_debug');
-        register_setting('aqm_security_settings', 'aqm_security_test_mode');
-        register_setting('aqm_security_settings', 'aqm_security_test_ip');
-        register_setting('aqm_security_settings', 'aqm_security_blocked_message');
-        register_setting('aqm_security_settings', 'aqm_security_log_throttle', array(
+        register_setting('aqm_security_options', 'aqm_security_api_key');
+        register_setting('aqm_security_options', 'aqm_security_blocked_ips');
+        register_setting('aqm_security_options', 'aqm_security_allowed_countries');
+        register_setting('aqm_security_options', 'aqm_security_allowed_states');
+        register_setting('aqm_security_options', 'aqm_security_allowed_zip_codes');
+        register_setting('aqm_security_options', 'aqm_security_enable_debug');
+        register_setting('aqm_security_options', 'aqm_security_test_mode');
+        register_setting('aqm_security_options', 'aqm_security_test_ip');
+        register_setting('aqm_security_options', 'aqm_security_blocked_message');
+        register_setting('aqm_security_options', 'aqm_security_log_throttle', array(
             'default' => 86400, // Default to 24 hours (86400 seconds)
             'sanitize_callback' => 'absint' // Ensure it's a positive integer
         ));
@@ -560,7 +560,7 @@ class AQM_Security_Admin {
             <form method="post" action="options.php">
                 <?php
                 // Output security fields
-                settings_fields('aqm_security_settings');
+                settings_fields('aqm_security_options');
                 
                 // Output setting sections and their fields
                 do_settings_sections('aqm_security_settings');
