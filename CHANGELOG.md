@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.0.4 - April 15, 2025
+- Removed non-functioning "Clear All Logs" button
+- Improved release package by excluding development files
+- Fixed additional PHP 8.2+ compatibility issues
+
 ## 2.0.3 - April 15, 2025
 - Added session-based visitor logging throttle to prevent multiple log entries for the same IP
 - Default throttle interval set to 24 hours to reduce database load
