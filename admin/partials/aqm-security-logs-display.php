@@ -131,12 +131,11 @@ $reset_url = add_query_arg(array(
                 </form>
             </div>
             <div class="alignright">
-                <form method="post" onsubmit="return confirm('<?php echo esc_js(__('Are you sure you want to clear all logs for this date?', 'aqm-security')); ?>');">
-                    <?php wp_nonce_field('aqm_security_admin_nonce', 'aqm_security_nonce'); ?>
-                    <button type="button" id="aqm_security_clear_visitor_logs" class="button" data-date="<?php echo esc_attr($current_date); ?>">
+                <div>
+                    <button type="button" id="aqm_security_clear_visitor_logs" class="button" data-date="<?php echo esc_attr($current_date); ?>" data-nonce="<?php echo wp_create_nonce('aqm_security_admin_nonce'); ?>">
                         <?php echo esc_html__('Clear Logs for This Date', 'aqm-security'); ?>
                     </button>
-                </form>
+                </div>
             </div>
             <br class="clear">
         </div>

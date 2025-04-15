@@ -151,7 +151,7 @@
             });
         });
         
-        // Handle clearing visitor logs
+        // Handle clearing visitor logs for a specific date
         $('#aqm_security_clear_visitor_logs').on('click', function(e) {
             e.preventDefault();
             
@@ -161,6 +161,7 @@
             
             var $button = $(this);
             var date = $button.data('date') || '';
+            var nonce = $button.data('nonce') || aqmSecurityAdmin.nonce;
             
             // Disable button and show loading
             $button.prop('disabled', true).text('Clearing...');
@@ -171,7 +172,7 @@
                 type: 'POST',
                 data: {
                     action: 'aqm_security_clear_visitor_logs',
-                    nonce: aqmSecurityAdmin.nonce,
+                    nonce: nonce,
                     date: date
                 },
                 success: function(response) {
@@ -187,6 +188,51 @@
                 error: function() {
                     alert('Failed to connect to server.');
                     $button.prop('disabled', false).text('Clear Logs');
+                }
+            });
+        });
+        
+        // Handle clearing ALL visitor logs
+        $('#aqm_security_clear_all_visitor_logs').on('click', function(e) {
+            e.preventDefault();
+            console.log('Clear All Logs button clicked');
+            
+            if (!confirm(aqmSecurityAdmin.confirmClearAllLogs)) {
+                return;
+            }
+            
+            var $button = $(this);
+            var nonce = $button.data('nonce') || aqmSecurityAdmin.nonce;
+            
+            console.log('Clearing all logs with nonce:', nonce);
+            
+            // Disable button and show loading
+            $button.prop('disabled', true).text('Clearing All Logs...');
+            
+            // Make AJAX request to the dedicated endpoint for clearing all logs
+            $.ajax({
+                url: aqmSecurityAdmin.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'aqm_security_clear_all_visitor_logs',
+                    nonce: nonce
+                },
+                success: function(response) {
+                    console.log('Clear all logs response:', response);
+                    if (response.success) {
+                        alert(response.data.message);
+                        // Reload the page to show updated logs
+                        window.location.reload();
+                    } else {
+                        alert(response.data.message);
+                        $button.prop('disabled', false).text('Clear All Logs');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX error:', status, error);
+                    console.log('Response text:', xhr.responseText);
+                    alert('Failed to connect to server.');
+                    $button.prop('disabled', false).text('Clear All Logs');
                 }
             });
         });

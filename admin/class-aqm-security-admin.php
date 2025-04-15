@@ -106,7 +106,8 @@ class AQM_Security_Admin {
         wp_localize_script('aqm-security-admin', 'aqmSecurityAdmin', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('aqm_security_admin_nonce'),
-            'confirmClearLogs' => __('Are you sure you want to clear all visitor logs? This cannot be undone.', 'aqm-security'),
+            'confirmClearLogs' => __('Are you sure you want to clear all visitor logs for this date? This cannot be undone.', 'aqm-security'),
+            'confirmClearAllLogs' => __('Are you sure you want to clear ALL visitor logs across all dates? This action cannot be undone.', 'aqm-security'),
             'confirmClearDebug' => __('Are you sure you want to clear the debug log? This cannot be undone.', 'aqm-security'),
             'confirmClearCache' => __('Are you sure you want to clear the visitor geolocation cache? This will force fresh API lookups for all visitors.', 'aqm-security')
         ));
@@ -126,6 +127,10 @@ class AQM_Security_Admin {
         register_setting('aqm_security_settings', 'aqm_security_test_mode');
         register_setting('aqm_security_settings', 'aqm_security_test_ip');
         register_setting('aqm_security_settings', 'aqm_security_blocked_message');
+        register_setting('aqm_security_settings', 'aqm_security_log_throttle', array(
+            'default' => 86400, // Default to 24 hours (86400 seconds)
+            'sanitize_callback' => 'absint' // Ensure it's a positive integer
+        ));
         
         // Add callback to clear visitor cache when settings are updated
         add_action('update_option_aqm_security_allowed_countries', array($this, 'clear_visitor_cache'), 10, 2);
@@ -246,6 +251,15 @@ class AQM_Security_Admin {
             'aqm_security_advanced_section',
             array('class' => 'aqm-security-test-ip-field')
         );
+        
+        // Add logging throttle field
+        add_settings_field(
+            'aqm_security_log_throttle',
+            __('Visitor Logging Throttle', 'aqm-security'),
+            array($this, 'render_log_throttle_field'),
+            'aqm_security_settings',
+            'aqm_security_advanced_section'
+        );
     }
     
     /**
@@ -268,6 +282,7 @@ class AQM_Security_Admin {
         add_action('wp_ajax_aqm_security_download_logs', array($this, 'ajax_download_logs'));
         add_action('wp_ajax_aqm_security_clear_logs', array($this, 'ajax_clear_logs'));
         add_action('wp_ajax_aqm_security_clear_visitor_logs', array($this, 'ajax_clear_visitor_logs'));
+        add_action('wp_ajax_aqm_security_clear_all_visitor_logs', array($this, 'ajax_clear_all_visitor_logs'));
         add_action('wp_ajax_aqm_security_download_log', array($this, 'ajax_download_log'));
         add_action('wp_ajax_aqm_security_clear_cache', array($this, 'ajax_clear_cache'));
         
@@ -504,6 +519,37 @@ class AQM_Security_Admin {
     }
     
     /**
+     * Render logging throttle field
+     */
+    public function render_log_throttle_field() {
+        $throttle_seconds = intval(get_option('aqm_security_log_throttle', 900));
+        
+        // Create dropdown options for common time intervals
+        $options = array(
+            0 => __('Disabled (log every visit)', 'aqm-security'),
+            60 => __('1 minute', 'aqm-security'),
+            300 => __('5 minutes', 'aqm-security'),
+            900 => __('15 minutes', 'aqm-security'),
+            1800 => __('30 minutes', 'aqm-security'),
+            3600 => __('1 hour', 'aqm-security'),
+            7200 => __('2 hours', 'aqm-security'),
+            14400 => __('4 hours', 'aqm-security'),
+            28800 => __('8 hours', 'aqm-security'),
+            43200 => __('12 hours', 'aqm-security'),
+            86400 => __('24 hours', 'aqm-security')
+        );
+        
+        echo '<select id="aqm_security_log_throttle" name="aqm_security_log_throttle">';
+        
+        foreach ($options as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($throttle_seconds, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        
+        echo '</select>';
+        echo '<p class="description">' . __('How often to log the same visitor IP address. This prevents multiple log entries for the same visitor during a single browsing session.', 'aqm-security') . '</p>';
+    }
+    
+    /**
      * Display the plugin settings page
      */
     public function display_plugin_settings_page() {
@@ -651,33 +697,76 @@ class AQM_Security_Admin {
     }
     
     /**
-     * AJAX handler for clearing visitor logs
+     * AJAX handler for clearing visitor logs for a specific date
      */
     public function ajax_clear_visitor_logs() {
+        // Debug log the request
+        error_log('[AQM Security] Clear logs for date AJAX request received: ' . print_r($_POST, true));
+        
         // Check nonce for security
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'aqm_security_admin_nonce')) {
+            error_log('[AQM Security] Nonce verification failed');
             wp_send_json_error(array('message' => __('Security check failed.', 'aqm-security')));
         }
         
         // Check if user has permission
         if (!current_user_can('manage_options')) {
+            error_log('[AQM Security] Permission check failed');
             wp_send_json_error(array('message' => __('You do not have permission to perform this action.', 'aqm-security')));
         }
         
         // Get date parameter if set
         $date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+        error_log('[AQM Security] Clearing logs with date parameter: "' . $date . '"');
         
         // Clear logs
         $result = AQM_Security_Logger::clear_logs($date);
+        error_log('[AQM Security] Clear logs result: ' . ($result ? 'success' : 'failure'));
         
         if ($result) {
-            wp_send_json_success(array(
-                'message' => $date ? 
-                    sprintf(__('Logs for %s cleared successfully.', 'aqm-security'), $date) : 
-                    __('All logs cleared successfully.', 'aqm-security')
-            ));
+            $message = $date ? 
+                sprintf(__('Logs for %s cleared successfully.', 'aqm-security'), $date) : 
+                __('All logs cleared successfully.', 'aqm-security');
+            error_log('[AQM Security] Success message: ' . $message);
+            wp_send_json_success(array('message' => $message));
         } else {
+            error_log('[AQM Security] Failed to clear logs');
             wp_send_json_error(array('message' => __('Failed to clear logs.', 'aqm-security')));
+        }
+    }
+    
+    /**
+     * AJAX handler for clearing ALL visitor logs
+     */
+    public function ajax_clear_all_visitor_logs() {
+        // Debug log the request
+        error_log('[AQM Security] Clear ALL logs AJAX request received: ' . print_r($_POST, true));
+        
+        // Check nonce for security
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'aqm_security_admin_nonce')) {
+            error_log('[AQM Security] Nonce verification failed');
+            wp_send_json_error(array('message' => __('Security check failed.', 'aqm-security')));
+        }
+        
+        // Check if user has permission
+        if (!current_user_can('manage_options')) {
+            error_log('[AQM Security] Permission check failed');
+            wp_send_json_error(array('message' => __('You do not have permission to perform this action.', 'aqm-security')));
+        }
+        
+        // Clear ALL logs using TRUNCATE
+        global $wpdb;
+        $table_name = $wpdb->prefix . AQM_Security_Logger::TABLE_NAME;
+        
+        error_log('[AQM Security] Attempting to truncate table: ' . $table_name);
+        $result = $wpdb->query("TRUNCATE TABLE {$table_name}");
+        
+        if ($result !== false) {
+            error_log('[AQM Security] Successfully truncated table: ' . $table_name);
+            wp_send_json_success(array('message' => __('All logs cleared successfully.', 'aqm-security')));
+        } else {
+            error_log('[AQM Security] Failed to truncate table: ' . $table_name . '. Error: ' . $wpdb->last_error);
+            wp_send_json_error(array('message' => __('Failed to clear all logs.', 'aqm-security')));
         }
     }
     

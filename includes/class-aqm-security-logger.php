@@ -22,6 +22,12 @@ class AQM_Security_Logger {
     public static function log_visitor($ip, $country, $region, $zip, $allowed, $country_flag = '', $force_new = false) {
         global $wpdb;
         
+        // Check for session-based logging throttle
+        if (!$force_new && self::should_skip_logging($ip)) {
+            error_log("[AQM Security] Skipping redundant logging for IP: $ip (session throttle)");
+            return true; // Return true to indicate success without actually logging
+        }
+        
         // Debug log the start of the logging process
         error_log("[AQM Security] Starting visitor logging process...");
         
@@ -106,6 +112,10 @@ class AQM_Security_Logger {
             }
             
             error_log("[AQM Security] Successfully updated log entry for IP: $ip (ID: $existing_id)");
+            
+            // Mark this IP as logged in this session
+            self::set_logging_throttle($ip);
+            
             return $existing_id;
         } else {
             // No existing entry, insert a new one
@@ -117,6 +127,10 @@ class AQM_Security_Logger {
             }
             
             error_log("[AQM Security] Successfully logged visitor with ID: " . $wpdb->insert_id);
+            
+            // Mark this IP as logged in this session
+            self::set_logging_throttle($ip);
+            
             return $wpdb->insert_id;
         }
     }
@@ -156,6 +170,64 @@ class AQM_Security_Logger {
                 error_log("[AQM Security] ERROR: Failed to create visitor log table!");
             }
         }
+    }
+    
+    /**
+     * Check if we should skip logging for this IP based on session throttle
+     * 
+     * @param string $ip The IP address to check
+     * @return bool Whether logging should be skipped
+     */
+    private static function should_skip_logging($ip) {
+        // Sanitize IP for use in transient name
+        $ip_key = sanitize_key(str_replace('.', '_', $ip));
+        $transient_name = 'aqms_log_throttle_' . $ip_key;
+        
+        // Check if we've logged this IP recently
+        $last_logged = get_transient($transient_name);
+        
+        if ($last_logged) {
+            // Get the throttle interval from settings, default to 24 hours (86400 seconds)
+            $throttle_interval = intval(get_option('aqm_security_log_throttle', 86400));
+            
+            // If throttle is disabled (set to 0), always log
+            if ($throttle_interval <= 0) {
+                return false;
+            }
+            
+            // Check if enough time has passed since the last log
+            $time_diff = time() - intval($last_logged);
+            
+            // If we're within the throttle interval, skip logging
+            if ($time_diff < $throttle_interval) {
+                return true;
+            }
+        }
+        
+        // No recent log found or throttle interval passed, proceed with logging
+        return false;
+    }
+    
+    /**
+     * Set the logging throttle for an IP address
+     * 
+     * @param string $ip The IP address to set throttle for
+     */
+    private static function set_logging_throttle($ip) {
+        // Sanitize IP for use in transient name
+        $ip_key = sanitize_key(str_replace('.', '_', $ip));
+        $transient_name = 'aqms_log_throttle_' . $ip_key;
+        
+        // Get the throttle interval from settings, default to 24 hours (86400 seconds)
+        $throttle_interval = intval(get_option('aqm_security_log_throttle', 86400));
+        
+        // If throttle is disabled, don't set the transient
+        if ($throttle_interval <= 0) {
+            return;
+        }
+        
+        // Store current timestamp as the last logged time
+        set_transient($transient_name, time(), $throttle_interval);
     }
     
     /**
@@ -387,26 +459,42 @@ class AQM_Security_Logger {
     public static function clear_logs($date = '') {
         global $wpdb;
         
+        error_log("[AQM Security] clear_logs method called with date parameter: '{$date}'");
+        
+        // Ensure the table exists
+        self::maybe_create_table();
+        
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        error_log("[AQM Security] Using table: {$table_name}");
+        
+        // Check if table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") === $table_name;
+        if (!$table_exists) {
+            error_log("[AQM Security] ERROR: Table {$table_name} does not exist!");
+            return false;
+        }
         
         // If date is specified, only clear logs for that date
         if (!empty($date)) {
-            $result = $wpdb->query(
-                $wpdb->prepare(
-                    "DELETE FROM {$table_name} WHERE DATE(timestamp) = %s",
-                    $date
-                )
-            );
+            error_log("[AQM Security] Clearing logs for specific date: {$date}");
+            $query = $wpdb->prepare("DELETE FROM {$table_name} WHERE DATE(timestamp) = %s", $date);
+            error_log("[AQM Security] Running query: {$query}");
             
-            error_log("[AQM Security] Cleared visitor logs for date: {$date}. Result: " . ($result !== false ? $result : 'Failed'));
+            $result = $wpdb->query($query);
+            
+            error_log("[AQM Security] Cleared visitor logs for date: {$date}. Result: " . ($result !== false ? $result : 'Failed') . ", Last error: {$wpdb->last_error}");
             
             return $result !== false;
         }
         
         // Clear all logs
-        $result = $wpdb->query("TRUNCATE TABLE {$table_name}");
+        error_log("[AQM Security] Clearing ALL logs (empty date parameter)");
+        $query = "TRUNCATE TABLE {$table_name}";
+        error_log("[AQM Security] Running query: {$query}");
         
-        error_log("[AQM Security] Cleared all visitor logs. Result: " . ($result !== false ? 'Success' : 'Failed'));
+        $result = $wpdb->query($query);
+        
+        error_log("[AQM Security] Cleared all visitor logs. Result: " . ($result !== false ? 'Success' : 'Failed') . ", Last error: {$wpdb->last_error}");
         
         return $result !== false;
     }
