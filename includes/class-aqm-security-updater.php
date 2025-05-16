@@ -123,7 +123,17 @@ class AQM_Security_Updater {
         }
         
         // If update data is available and version is newer, add to transient
-        if ($update_data && version_compare($this->plugin_data['Version'], ltrim($update_data->tag_name, 'v'), '<')) {
+        if ($update_data) {
+            // Clean the tag name by removing the 'v' prefix if it exists
+            $latest_version = ltrim($update_data->tag_name, 'v');
+            $current_version = $this->plugin_data['Version'];
+            
+            // Debug log the version comparison
+            if (defined('WP_DEBUG') && WP_DEBUG === true) {
+                error_log('[AQM SECURITY UPDATER] Comparing versions - Current: ' . $current_version . ', Latest: ' . $latest_version . ', Result: ' . (version_compare($current_version, $latest_version, '<') ? 'Update Available' : 'No Update Needed'));
+            }
+            
+            if (version_compare($current_version, $latest_version, '<')) {
             if (defined('WP_DEBUG') && WP_DEBUG === true) {
                 error_log('[AQM SECURITY UPDATER] New version available: ' . $update_data->tag_name);
             }
@@ -143,6 +153,7 @@ class AQM_Security_Updater {
 
             // Add to transient
             $transient->response[$this->plugin_basename] = $plugin_info;
+        }
         }
 
         return $transient;
@@ -206,7 +217,19 @@ class AQM_Security_Updater {
             return false;
         }
         
-        // Get the first tag (most recent)
+        // Sort tags by version number (newest first)
+        usort($tags, function($a, $b) {
+            // Remove 'v' prefix if present
+            $version_a = ltrim($a->name, 'v');
+            $version_b = ltrim($b->name, 'v');
+            return version_compare($version_b, $version_a);
+        });
+        
+        if (defined('WP_DEBUG') && WP_DEBUG === true) {
+            error_log('[AQM SECURITY UPDATER] Sorted tags: ' . implode(', ', array_map(function($tag) { return $tag->name; }, $tags)));
+        }
+        
+        // Get the first tag (most recent after sorting)
         $latest_tag = $tags[0];
         
         // Create a response object similar to the releases endpoint
