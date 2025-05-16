@@ -586,7 +586,6 @@ class AQM_Security_Public {
                 $visitor['ip'],
                 isset($visitor['country']) ? $visitor['country'] : '',
                 isset($visitor['region']) ? $visitor['region'] : '',
-                isset($visitor['zip']) ? $visitor['zip'] : '',
                 $this->is_allowed,
                 isset($visitor['location']['country_flag']) ? $visitor['location']['country_flag'] : '',
                 false // Always update existing records, never force new entries

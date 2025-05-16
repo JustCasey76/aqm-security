@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.0.7 - May 16, 2025
+- Removed ZIP code filtering functionality as it's no longer needed
+- Updated GitHub updater implementation to match other AQM plugins
+- Removed old GitHub updater class
+- Fixed PHP 8.2+ compatibility issues
+
 ## 2.0.6 - April 15, 2025
 - Fixed Visitor Logging Throttle dropdown default to 24 hours instead of 15 minutes
 - Fixed settings page to properly save all settings

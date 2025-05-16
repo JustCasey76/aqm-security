@@ -122,7 +122,7 @@ class AQM_Security_Admin {
         register_setting('aqm_security_options', 'aqm_security_blocked_ips');
         register_setting('aqm_security_options', 'aqm_security_allowed_countries');
         register_setting('aqm_security_options', 'aqm_security_allowed_states');
-        register_setting('aqm_security_options', 'aqm_security_allowed_zip_codes');
+        // ZIP code option removed in version 2.0.7
         register_setting('aqm_security_options', 'aqm_security_enable_debug');
         register_setting('aqm_security_options', 'aqm_security_test_mode');
         register_setting('aqm_security_options', 'aqm_security_test_ip');
@@ -135,7 +135,7 @@ class AQM_Security_Admin {
         // Add callback to clear visitor cache when settings are updated
         add_action('update_option_aqm_security_allowed_countries', array($this, 'clear_visitor_cache'), 10, 2);
         add_action('update_option_aqm_security_allowed_states', array($this, 'clear_visitor_cache'), 10, 2);
-        add_action('update_option_aqm_security_allowed_zip_codes', array($this, 'clear_visitor_cache'), 10, 2);
+        // ZIP code option removed in version 2.0.7
         add_action('update_option_aqm_security_blocked_ips', array($this, 'clear_visitor_cache'), 10, 2);
         
         // Add API settings section
@@ -186,15 +186,6 @@ class AQM_Security_Admin {
             'aqm_security_allowed_states',
             __('Allowed States/Regions', 'aqm-security'),
             array($this, 'render_allowed_states_field'),
-            'aqm-security',
-            'aqm_security_rules_section'
-        );
-        
-        // Add allowed zip codes field
-        add_settings_field(
-            'aqm_security_allowed_zip_codes',
-            __('Allowed ZIP Codes', 'aqm-security'),
-            array($this, 'render_allowed_zip_codes_field'),
             'aqm-security',
             'aqm_security_rules_section'
         );
@@ -353,7 +344,7 @@ class AQM_Security_Admin {
      */
     public function render_rules_section() {
         echo '<p>' . __('Configure which visitors are allowed to access forms on your site. Leave fields blank to ignore that rule.', 'aqm-security') . '</p>';
-        echo '<p>' . __('Rules are checked in this order: Blocked IPs, Allowed Countries, Allowed States, Allowed Zip Codes.', 'aqm-security') . '</p>';
+        echo '<p>' . __('Rules are checked in this order: Blocked IPs, Allowed Countries, Allowed States.', 'aqm-security') . '</p>';
     }
     
     /**
@@ -387,13 +378,10 @@ class AQM_Security_Admin {
     }
     
     /**
-     * Render allowed zip codes field
+     * Render allowed zip codes field - REMOVED in version 2.0.7
      */
     public function render_allowed_zip_codes_field() {
-        $allowed_zip_codes = get_option('aqm_security_allowed_zip_codes', '');
-        
-        echo '<textarea id="aqm_security_allowed_zip_codes" name="aqm_security_allowed_zip_codes" class="large-text code" rows="5" placeholder="' . __('Enter one zip/postal code per line', 'aqm-security') . '">' . esc_textarea($allowed_zip_codes) . '</textarea>';
-        echo '<p class="description">' . __('Enter one zip/postal code per line. Visitors from these zip codes will be allowed.', 'aqm-security') . '</p>';
+        // This field has been removed
     }
     
     /**
@@ -841,7 +829,7 @@ class AQM_Security_Admin {
         error_log('[AQM Security] Settings updated: forcing visitor cache clear');
         
         // If settings that affect visitor access have changed, clear all Formidable Forms caches too
-        $access_settings = ['allowed_countries', 'allowed_states', 'allowed_zip_codes', 'test_mode', 'test_ip'];
+        $access_settings = ['allowed_countries', 'allowed_states', 'test_mode', 'test_ip'];
         $update_access = false;
         
         foreach ($access_settings as $setting) {

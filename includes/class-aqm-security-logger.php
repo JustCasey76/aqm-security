@@ -12,14 +12,13 @@ class AQM_Security_Logger {
      * 
      * @param string $ip Visitor IP address
      * @param string $country Visitor country
-     * @param string $region Visitor region 
-     * @param string $zip Visitor zip code
+     * @param string $region Visitor region
      * @param bool $allowed Whether the visitor is allowed
      * @param string $country_flag URL to the country flag
      * @param bool $force_new Force a new log entry even if recent entry exists
      * @return int|bool Last insert ID or false on failure
      */
-    public static function log_visitor($ip, $country, $region, $zip, $allowed, $country_flag = '', $force_new = false) {
+    public static function log_visitor($ip, $country, $region, $allowed, $country_flag = '', $force_new = false) {
         global $wpdb;
         
         // Check for session-based logging throttle

@@ -490,25 +490,10 @@ class AQM_Security_API {
         }
         $allowed_states = $processed_states;
         
-        $allowed_zip_codes = explode("\n", get_option('aqm_security_allowed_zip_codes', ''));
-        $allowed_zip_codes = array_map('trim', $allowed_zip_codes);
-        $allowed_zip_codes = array_filter($allowed_zip_codes); // Remove empty entries
-        
-        // Process comma-separated values
-        $processed_zip_codes = array();
-        foreach ($allowed_zip_codes as $zip_entry) {
-            if (strpos($zip_entry, ',') !== false) {
-                $zips = explode(',', $zip_entry);
-                $zips = array_map('trim', $zips);
-                $processed_zip_codes = array_merge($processed_zip_codes, $zips);
-            } else {
-                $processed_zip_codes[] = $zip_entry;
-            }
-        }
-        $allowed_zip_codes = $processed_zip_codes;
+        // ZIP code functionality removed in version 2.0.7
         
         // If all the allow lists are empty, allow access
-        if (empty($allowed_countries) && empty($allowed_states) && empty($allowed_zip_codes)) {
+        if (empty($allowed_countries) && empty($allowed_states)) {
             self::debug_log('All allow lists are empty, allowing access by default');
             return true;
         }
@@ -516,7 +501,7 @@ class AQM_Security_API {
         // Get visitor codes, ensuring we have values
         $visitor_country = strtoupper(isset($geo_data['country_code']) ? $geo_data['country_code'] : '');
         $visitor_region = strtoupper(isset($geo_data['region_code']) ? $geo_data['region_code'] : '');
-        $visitor_zip = isset($geo_data['zip']) ? $geo_data['zip'] : '';
+        // ZIP code functionality removed in version 2.0.7
         
         // Convert all allowed values to uppercase for consistent comparison
         $allowed_countries_upper = array_map('strtoupper', $allowed_countries);
@@ -528,13 +513,12 @@ class AQM_Security_API {
         // Check if state matches (if states list is present)
         $state_check = empty($allowed_states) ? true : in_array($visitor_region, $allowed_states_upper);
         
-        // Check if zip matches (if zip list is present)
-        $zip_check = empty($allowed_zip_codes) ? true : in_array($visitor_zip, $allowed_zip_codes);
+        // ZIP code functionality removed in version 2.0.7
         
         // Debug logs for visitor data
         self::debug_log('Visitor country code: ' . $visitor_country . ' (Allowed: ' . ($country_check ? 'Yes' : 'Fail') . ')');
         self::debug_log('Visitor region code: ' . $visitor_region . ' (Allowed: ' . ($state_check ? 'Yes' : 'Fail') . ')');
-        self::debug_log('Visitor zip code: ' . $visitor_zip . ' (Allowed: ' . ($zip_check ? 'Yes' : 'Fail') . ')');
+        // ZIP code functionality removed in version 2.0.7
         
         // Extra debugging - log comparison details for state check
         if (!empty($allowed_states)) {
@@ -549,18 +533,16 @@ class AQM_Security_API {
         if (!empty($allowed_states) && !$state_check) {
             self::debug_log('State check failed. Visitor state "' . $visitor_region . '" not in allowed list: ' . json_encode($allowed_states_upper));
         }
-        if (!empty($allowed_zip_codes) && !$zip_check) {
-            self::debug_log('Zip check failed. Visitor zip "' . $visitor_zip . '" not in allowed list: ' . json_encode($allowed_zip_codes));
-        }
+        // ZIP code functionality removed in version 2.0.7
         
         // STRICT logic - if ANY configured check fails, visitor is blocked
         // Only consider checks that are actually configured (non-empty lists)
         $has_country_check = !empty($allowed_countries);
         $has_state_check = !empty($allowed_states);
-        $has_zip_check = !empty($allowed_zip_codes);
+        $has_zip_check = false; // ZIP code functionality removed in version 2.0.7
         
         // If no checks are configured, allow by default
-        if (!$has_country_check && !$has_state_check && !$has_zip_check) {
+        if (!$has_country_check && !$has_state_check) {
             self::debug_log('No location checks are configured, allowing access by default');
             $is_allowed = true;
         } else {
@@ -572,9 +554,6 @@ class AQM_Security_API {
             } else if ($has_state_check && !$state_check) {
                 self::debug_log('BLOCKED: State check is configured and failed');
                 $is_allowed = false;
-            } else if ($has_zip_check && !$zip_check) {
-                self::debug_log('BLOCKED: ZIP check is configured and failed');
-                $is_allowed = false;
             } else {
                 self::debug_log('ALLOWED: All configured checks passed');
                 $is_allowed = true;
@@ -582,14 +561,12 @@ class AQM_Security_API {
         }
         
         self::debug_log(sprintf(
-            'Access check for IP %s: Country: %s (%s), State: %s (%s), Zip: %s (%s), Overall: %s',
+            'Access check for IP %s: Country: %s (%s), State: %s (%s), Overall: %s',
             $geo_data['ip'],
             $visitor_country,
             $country_check ? 'Pass' : 'Fail',
             $visitor_region,
             $state_check ? 'Pass' : 'Fail',
-            $visitor_zip,
-            $zip_check ? 'Pass' : 'Fail',
             $is_allowed ? 'Allowed' : 'Blocked'
         ));
         
