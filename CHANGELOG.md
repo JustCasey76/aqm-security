@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.0.8 - May 16, 2025
+- Fixed GitHub updater to properly detect and sort version tags
+- Enhanced version comparison logic to handle 'v' prefix in tag names
+- Added detailed debug logging for update process
+
 ## 2.0.7 - May 16, 2025
 - Removed ZIP code filtering functionality as it's no longer needed
 - Updated GitHub updater implementation to match other AQM plugins
