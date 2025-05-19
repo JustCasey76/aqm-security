@@ -1,6 +1,6 @@
 # AQM Security Plugin Changelog
 
-## 2.0.9 - May 19, 2025
+## 2.1.0 - May 19, 2025
 - Implemented personalized location-based blocked messages
 - Removed configurable blocked message from settings page
 - Enhanced message display with better styling and clarity
