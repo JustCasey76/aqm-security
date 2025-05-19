@@ -195,16 +195,28 @@ class AQM_Security_API {
      * @return string The client's IP address
      */
     public static function get_client_ip($use_test_ip = true) {
-        // Always check test mode directly from options to avoid any caching
+        // CRITICAL: Always check test mode directly from options to avoid any caching
         $test_mode = get_option('aqm_security_test_mode', false);
-        if ($test_mode && $use_test_ip) {
+        
+        // SECURITY ENHANCEMENT: Only apply test mode for logged-in administrators
+        $is_admin = function_exists('current_user_can') && current_user_can('manage_options');
+        
+        // Only use test IP if test mode is explicitly enabled, user is an admin, AND use_test_ip parameter is true
+        if ($test_mode === true && $use_test_ip === true && $is_admin) {
             // Always get fresh test IP from options
             $test_ip = get_option('aqm_security_test_ip', '');
             if (!empty($test_ip)) {
-                self::debug_log('Using test IP: ' . $test_ip . ' (from settings)');
+                self::debug_log('Using test IP: ' . $test_ip . ' (admin user in test mode)');
                 return $test_ip;
             }
             self::debug_log('Test mode is enabled but no test IP is set, using real IP');
+        } else {
+            // Log why we're using the real IP
+            if ($test_mode === true && !$is_admin) {
+                self::debug_log('Using real IP address (test mode enabled but user is not an admin)');
+            } else {
+                self::debug_log('Using real IP address (test mode disabled or bypassed)');
+            }
         }
         
         // Define a hierarchy of server variables to check for IP
@@ -250,27 +262,56 @@ class AQM_Security_API {
      * Get visitor geolocation data and handle caching
      *
      * @param bool $force_fresh Force fresh data retrieval
+     * @param string $specific_ip Optional specific IP to check (for rechecking logs)
      * @return array Visitor geolocation data
      */
-    public static function get_visitor_geolocation($force_fresh = false) {
+    public static function get_visitor_geolocation($force_fresh = false, $specific_ip = '') {
         // Get test mode status first
         $test_mode = get_option('aqm_security_test_mode', false);
         
-        // Get the actual visitor IP, regardless of test mode
-        $real_ip = self::get_client_ip(false); // Always get the real IP first
-        
-        // If test mode is enabled, use the test IP instead of the actual client IP
-        $ip = $test_mode ? get_option('aqm_security_test_ip', $real_ip) : $real_ip;
-        
-        // Special debug logging to verify IP
-        self::debug_log('IP DETECTION: ' . ($test_mode ? 'Test Mode' : 'Production Mode') . 
-            ', Using IP: ' . $ip . 
-            ($test_mode ? ', Real IP: ' . $real_ip : ''));
+        // If a specific IP was provided, use it (for rechecking logs)
+        if (!empty($specific_ip)) {
+            $ip = $specific_ip;
+            self::debug_log('Using specific IP for recheck: ' . $ip);
+        } else {
+            // SECURITY ENHANCEMENT: Check if user is an admin for test mode
+            $is_admin = function_exists('current_user_can') && current_user_can('manage_options');
+            
+            // Get the actual visitor IP, regardless of test mode
+            $real_ip = self::get_client_ip(false); // Always get the real IP first
+            
+            // Only apply test mode for admin users
+            if ($test_mode && $is_admin) {
+                $test_ip = get_option('aqm_security_test_ip', '');
+                $ip = !empty($test_ip) ? $test_ip : $real_ip;
+                self::debug_log('ADMIN TEST MODE: Using IP: ' . $ip . ', Real IP: ' . $real_ip);
+            } else {
+                // For non-admin users, always use their real IP
+                $ip = $real_ip;
+                if ($test_mode && !$is_admin) {
+                    self::debug_log('NON-ADMIN VISITOR: Test mode enabled but using real IP: ' . $ip);
+                } else {
+                    self::debug_log('REGULAR VISITOR: Using real IP: ' . $ip);
+                }
+            }
+        }
         
         // Clear any bad IPs
         if (empty($ip) || $ip == 'unknown') {
-            self::debug_log('Empty or unknown IP detected, using fallback');
-            $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $ip = '127.0.0.1';
+        }
+        
+        // EFFICIENCY IMPROVEMENT: Check logs first before making an API call
+        // Skip log check if we're forcing fresh data or in test mode
+        if (!$force_fresh && !$test_mode) {
+            // Check if we have a recent log entry for this IP
+            if (class_exists('AQM_Security_Logger')) {
+                $log_data = AQM_Security_Logger::get_visitor_by_ip($ip);
+                if ($log_data) {
+                    self::debug_log('Retrieved visitor data from logs for IP: ' . $ip);
+                    return $log_data;
+                }
+            }
         }
         
         // Add additional IP validation
@@ -500,7 +541,34 @@ class AQM_Security_API {
         
         // Get visitor codes, ensuring we have values
         $visitor_country = strtoupper(isset($geo_data['country_code']) ? $geo_data['country_code'] : '');
-        $visitor_region = strtoupper(isset($geo_data['region_code']) ? $geo_data['region_code'] : '');
+        
+        // Try region_code first, but fall back to region if needed
+        $visitor_region = '';
+        if (!empty($geo_data['region_code'])) {
+            $visitor_region = strtoupper($geo_data['region_code']);
+        } elseif (!empty($geo_data['region'])) {
+            // If we have a region name but no code, try to convert it to a code
+            $region_name = strtoupper($geo_data['region']);
+            $state_codes = array(
+                'ALABAMA' => 'AL', 'ALASKA' => 'AK', 'ARIZONA' => 'AZ', 'ARKANSAS' => 'AR', 'CALIFORNIA' => 'CA',
+                'COLORADO' => 'CO', 'CONNECTICUT' => 'CT', 'DELAWARE' => 'DE', 'FLORIDA' => 'FL', 'GEORGIA' => 'GA',
+                'HAWAII' => 'HI', 'IDAHO' => 'ID', 'ILLINOIS' => 'IL', 'INDIANA' => 'IN', 'IOWA' => 'IA',
+                'KANSAS' => 'KS', 'KENTUCKY' => 'KY', 'LOUISIANA' => 'LA', 'MAINE' => 'ME', 'MARYLAND' => 'MD',
+                'MASSACHUSETTS' => 'MA', 'MICHIGAN' => 'MI', 'MINNESOTA' => 'MN', 'MISSISSIPPI' => 'MS', 'MISSOURI' => 'MO',
+                'MONTANA' => 'MT', 'NEBRASKA' => 'NE', 'NEVADA' => 'NV', 'NEW HAMPSHIRE' => 'NH', 'NEW JERSEY' => 'NJ',
+                'NEW MEXICO' => 'NM', 'NEW YORK' => 'NY', 'NORTH CAROLINA' => 'NC', 'NORTH DAKOTA' => 'ND', 'OHIO' => 'OH',
+                'OKLAHOMA' => 'OK', 'OREGON' => 'OR', 'PENNSYLVANIA' => 'PA', 'RHODE ISLAND' => 'RI', 'SOUTH CAROLINA' => 'SC',
+                'SOUTH DAKOTA' => 'SD', 'TENNESSEE' => 'TN', 'TEXAS' => 'TX', 'UTAH' => 'UT', 'VERMONT' => 'VT',
+                'VIRGINIA' => 'VA', 'WASHINGTON' => 'WA', 'WEST VIRGINIA' => 'WV', 'WISCONSIN' => 'WI', 'WYOMING' => 'WY',
+                'DISTRICT OF COLUMBIA' => 'DC'
+            );
+            
+            if (isset($state_codes[$region_name])) {
+                $visitor_region = $state_codes[$region_name];
+                self::debug_log('Converted region name "' . $region_name . '" to code: ' . $visitor_region);
+            }
+        }
+        
         // ZIP code functionality removed in version 2.0.7
         
         // Convert all allowed values to uppercase for consistent comparison
@@ -510,8 +578,15 @@ class AQM_Security_API {
         // Check if country matches (if countries list is present)
         $country_check = empty($allowed_countries) ? true : in_array($visitor_country, $allowed_countries_upper);
         
-        // Check if state matches (if states list is present)
-        $state_check = empty($allowed_states) ? true : in_array($visitor_region, $allowed_states_upper);
+        // CRITICAL: Check if state matches (if states list is present)
+        // For US visitors, state check is REQUIRED if states are configured
+        if ($visitor_country === 'US' && !empty($allowed_states)) {
+            $state_check = in_array($visitor_region, $allowed_states_upper);
+            self::debug_log("US visitor detected - state check is REQUIRED: {$visitor_region} in [" . implode(',', $allowed_states_upper) . "] = " . ($state_check ? 'PASS' : 'FAIL'));
+        } else {
+            // For non-US visitors or when no states are configured
+            $state_check = empty($allowed_states) ? true : in_array($visitor_region, $allowed_states_upper);
+        }
         
         // ZIP code functionality removed in version 2.0.7
         
@@ -524,6 +599,15 @@ class AQM_Security_API {
         if (!empty($allowed_states)) {
             self::debug_log('DETAIL: State check - Visitor region: "' . $visitor_region . 
                            '", Allowed states (upper): ' . json_encode($allowed_states_upper));
+            
+            // Log all the raw geolocation data to help troubleshoot
+            self::debug_log('FULL GEO DATA: ' . json_encode($geo_data));
+            
+            // Force clear the cache if we're in test mode to ensure fresh data
+            if (get_option('aqm_security_test_mode', false)) {
+                self::debug_log('Test mode active - clearing geolocation cache to ensure fresh data');
+                self::clear_geolocation_cache();
+            }
         }
         
         // If any individual check is enabled but failed, show details
@@ -546,17 +630,39 @@ class AQM_Security_API {
             self::debug_log('No location checks are configured, allowing access by default');
             $is_allowed = true;
         } else {
-            // Visitor must pass ALL configured checks
-            // If any configured check fails, access is denied
-            if ($has_country_check && !$country_check) {
-                self::debug_log('BLOCKED: Country check is configured and failed');
-                $is_allowed = false;
-            } else if ($has_state_check && !$state_check) {
-                self::debug_log('BLOCKED: State check is configured and failed');
-                $is_allowed = false;
-            } else {
+            // CRITICAL: Initialize as false - visitor must explicitly pass ALL configured checks
+            $is_allowed = false;
+            
+            // Track if all checks pass
+            $all_checks_passed = true;
+            
+            // Check country if configured
+            if ($has_country_check) {
+                if (!$country_check) {
+                    self::debug_log('BLOCKED: Country check failed - visitor country "' . $visitor_country . '" not in allowed list');
+                    $all_checks_passed = false;
+                } else {
+                    self::debug_log('PASSED: Country check passed - visitor country "' . $visitor_country . '" is allowed');
+                }
+            }
+            
+            // Check state if configured
+            if ($has_state_check) {
+                if (!$state_check) {
+                    self::debug_log('BLOCKED: State check failed - visitor state "' . $visitor_region . '" not in allowed list: ' . json_encode($allowed_states_upper));
+                    $all_checks_passed = false;
+                } else {
+                    self::debug_log('PASSED: State check passed - visitor state "' . $visitor_region . '" is allowed');
+                }
+            }
+            
+            // Only allow if ALL configured checks pass
+            if ($all_checks_passed) {
                 self::debug_log('ALLOWED: All configured checks passed');
                 $is_allowed = true;
+            } else {
+                self::debug_log('BLOCKED: One or more configured checks failed');
+                $is_allowed = false;
             }
         }
         
@@ -587,12 +693,13 @@ class AQM_Security_API {
         // Also clear any visitor data transients
         $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%aqm_security_visitor_data_%'");
         
-        // Log the action
-        self::debug_log('Geolocation cache cleared');
+        self::debug_log("Geolocation cache cleared. {$count} items removed.");
+        
+        return $count;
     }
-
+    
     /**
-     * Get country flag emoji from country code
+     * Get country flag emoji for a country code
      * 
      * @param string $country_code Two-letter country code
      * @return string Flag emoji

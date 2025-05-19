@@ -1,5 +1,12 @@
 # AQM Security Plugin Changelog
 
+## 2.0.9 - May 19, 2025
+- Implemented personalized location-based blocked messages
+- Removed configurable blocked message from settings page
+- Enhanced message display with better styling and clarity
+- US visitors now see their state name in blocked messages
+- International visitors now see their country name in blocked messages
+
 ## 2.0.8 - May 16, 2025
 - Fixed GitHub updater to properly detect and sort version tags
 - Enhanced version comparison logic to handle 'v' prefix in tag names

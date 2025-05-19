@@ -68,12 +68,12 @@
             }
             
             var $button = $(this);
-            var $result = $('#aqm_security_clear_cache_result');
-            var $spinner = $button.siblings('.spinner');
+            var $result = $('#aqm_security_cache_result');
+            var originalText = $button.html();
             
             // Disable button and show loading
             $button.prop('disabled', true);
-            $spinner.css('visibility', 'visible');
+            $button.html('<span class="dashicons dashicons-update dashicons-spin" style="vertical-align: text-bottom;"></span> Clearing...');
             
             // Make AJAX request
             $.ajax({
@@ -101,9 +101,9 @@
                     $result.html('<span class="error" style="color:red;"><strong>Error: </strong>Failed to connect to server.</span>');
                 },
                 complete: function() {
-                    // Re-enable button and hide spinner
+                    // Re-enable button and restore original text
                     $button.prop('disabled', false);
-                    $spinner.css('visibility', 'hidden');
+                    $button.html(originalText);
                 }
             });
         });

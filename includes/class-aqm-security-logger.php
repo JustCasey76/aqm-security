@@ -552,14 +552,104 @@ class AQM_Security_Logger {
     }
     
     /**
+     * Get visitor data by IP address from the logs
+     * 
+     * @param string $ip Visitor IP address to look up
+     * @return array|false Visitor data array or false if not found
+     */
+    public static function get_visitor_by_ip($ip) {
+        global $wpdb;
+        
+        // Ensure the table exists
+        self::maybe_create_table();
+        
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        
+        // Get the throttle interval from settings, default to 24 hours (86400 seconds)
+        $throttle_interval = intval(get_option('aqm_security_log_throttle', 86400));
+        
+        // Calculate the cutoff time based on the throttle interval
+        $dt = new DateTime('now', new DateTimeZone('UTC'));
+        $dt->modify('-' . $throttle_interval . ' seconds');
+        $cutoff_time = $dt->format('Y-m-d H:i:s');
+        
+        // Get the most recent log entry for this IP that's within the throttle interval
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE ip = %s AND timestamp >= %s ORDER BY timestamp DESC LIMIT 1",
+            $ip,
+            $cutoff_time
+        );
+        
+        $result = $wpdb->get_row($query, ARRAY_A);
+        
+        if ($result) {
+            self::debug_log("Found existing log entry for IP: {$ip} (ID: {$result['id']})");
+            return array(
+                'ip' => $result['ip'],
+                'country_code' => $result['country'],
+                'country_name' => $result['country'],
+                'region_code' => $result['region'],
+                'region' => $result['region'],
+                'zip' => $result['zipcode'],
+                'allowed' => (bool)$result['allowed'],
+                'location' => array(
+                    'country_flag' => $result['flag_url'],
+                )
+            );
+        }
+        
+        self::debug_log("No recent log entry found for IP: {$ip}");
+        return false;
+    }
+    
+    /**
+     * Purge old logs based on retention setting
+     * 
+     * @return int Number of logs purged
+     */
+    public static function purge_old_logs() {
+        global $wpdb;
+        
+        // Get retention setting (in days)
+        $retention_days = intval(get_option('aqm_security_log_retention', 30));
+        
+        // If retention is set to 0 (forever), don't purge anything
+        if ($retention_days <= 0) {
+            self::debug_log('Log retention set to forever, skipping purge');
+            return 0;
+        }
+        
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        
+        // Calculate cutoff date
+        $dt = new DateTime('now', new DateTimeZone('UTC'));
+        $dt->modify('-' . $retention_days . ' days');
+        $cutoff_date = $dt->format('Y-m-d H:i:s');
+        
+        // Delete logs older than cutoff date
+        $result = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$table_name} WHERE timestamp < %s",
+            $cutoff_date
+        ));
+        
+        if ($result !== false) {
+            self::debug_log("Purged {$result} logs older than {$cutoff_date} (retention: {$retention_days} days)");
+            return intval($result);
+        } else {
+            self::debug_log("Failed to purge old logs. Database error: {$wpdb->last_error}");
+            return 0;
+        }
+    }
+    
+    /**
      * Debug log message
      * 
      * @param string $message Debug message
      * @return void
      */
     private static function debug_log($message) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[AQM Security Logger] ' . $message);
+        if (defined('WP_DEBUG') && WP_DEBUG === true) {
+            error_log('[AQM SECURITY LOGGER] ' . $message);
         }
     }
 }

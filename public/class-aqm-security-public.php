@@ -50,6 +50,10 @@ class AQM_Security_Public {
         // Initialize shortcodes first
         add_action('init', array($this, 'initialize_shortcodes'), 5);
         
+        // CRITICAL: Initialize geolocation check as early as possible
+        add_action('wp', array($this, 'initialize_geolocation_check'), 1);
+        add_action('template_redirect', array($this, 'force_check_geolocation'), 5);
+        
         // Add hooks for the plugin's main functionality
         add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
@@ -169,6 +173,28 @@ class AQM_Security_Public {
     }
     
     /**
+     * Force check geolocation early in the page load
+     * This ensures we check before any form rendering happens
+     */
+    public function force_check_geolocation() {
+        // Skip admin pages and AJAX requests
+        if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
+            return;
+        }
+        
+        // Force a geolocation check if it hasn't been done yet
+        if ($this->is_allowed === null) {
+            AQM_Security_API::debug_log('Forcing early geolocation check');
+            $this->check_geolocation();
+            
+            // If visitor is not allowed, apply form blocking immediately
+            if ($this->is_allowed === false) {
+                $this->apply_formidable_visibility(false);
+            }
+        }
+    }
+    
+    /**
      * Check visitor's geolocation and determine if they are allowed
      * 
      * @return bool Whether the visitor is allowed
@@ -187,13 +213,10 @@ class AQM_Security_Public {
             // Check if test mode is enabled - get fresh from options
             $test_mode = get_option('aqm_security_test_mode', false);
             
-            // Skip all checks for admin users when not in test mode
-            if (current_user_can('manage_options') && !$test_mode) {
-                $this->is_allowed = true;
-                // Make sure to pass the visitor data for proper logging
-                $visitor = AQM_Security_API::get_visitor_geolocation(true);
-                $this->log_visitor_access($test_mode, $visitor);
-                return $this->is_allowed;
+            // FIXED: Don't skip checks for admin users - they should see what regular visitors see
+            // Only log that they're an admin for reference
+            if (current_user_can('manage_options')) {
+                AQM_Security_API::debug_log('Admin user detected - still checking geolocation to show accurate form visibility');
             }
             
             // Always get fresh visitor data and FORCE check against IP block list
@@ -547,6 +570,70 @@ class AQM_Security_Public {
     }
     
     /**
+     * Get a formatted blocked message that includes location details
+     * 
+     * @return string Formatted blocked message
+     */
+    public function get_formatted_blocked_message() {
+        // Get visitor geolocation data if not already loaded
+        if (!isset($this->geo_data) || empty($this->geo_data)) {
+            $this->geo_data = AQM_Security_API::get_visitor_geolocation(true); // Force fresh data
+        }
+        
+        // Log the geolocation data for debugging
+        AQM_Security_API::debug_log('Formatting blocked message with geo data: ' . json_encode($this->geo_data));
+        
+        // Default message if no location data is available
+        $message = __('Sorry, we are not currently offering services in your location. If you believe this is an error, please contact our support team.', 'aqm-security');
+        
+        if (!empty($this->geo_data)) {
+            // Simple logic: US visitors see state, international visitors see country
+            $country_code = !empty($this->geo_data['country_code']) ? $this->geo_data['country_code'] : '';
+            
+            if (!empty($country_code) && $country_code == 'US') {
+                // US visitor - use state name if available
+                if (!empty($this->geo_data['region'])) {
+                    $message = sprintf(
+                        __('Sorry, we are not currently offering services in %s. If you believe this is an error, please contact our support team.', 'aqm-security'),
+                        $this->geo_data['region']
+                    );
+                } elseif (!empty($this->geo_data['region_code'])) {
+                    // Convert state code to name
+                    $state_codes = array(
+                        'AL' => 'Alabama', 'AK' => 'Alaska', 'AZ' => 'Arizona', 'AR' => 'Arkansas', 'CA' => 'California',
+                        'CO' => 'Colorado', 'CT' => 'Connecticut', 'DE' => 'Delaware', 'FL' => 'Florida', 'GA' => 'Georgia',
+                        'HI' => 'Hawaii', 'ID' => 'Idaho', 'IL' => 'Illinois', 'IN' => 'Indiana', 'IA' => 'Iowa',
+                        'KS' => 'Kansas', 'KY' => 'Kentucky', 'LA' => 'Louisiana', 'ME' => 'Maine', 'MD' => 'Maryland',
+                        'MA' => 'Massachusetts', 'MI' => 'Michigan', 'MN' => 'Minnesota', 'MS' => 'Mississippi', 'MO' => 'Missouri',
+                        'MT' => 'Montana', 'NE' => 'Nebraska', 'NV' => 'Nevada', 'NH' => 'New Hampshire', 'NJ' => 'New Jersey',
+                        'NM' => 'New Mexico', 'NY' => 'New York', 'NC' => 'North Carolina', 'ND' => 'North Dakota', 'OH' => 'Ohio',
+                        'OK' => 'Oklahoma', 'OR' => 'Oregon', 'PA' => 'Pennsylvania', 'RI' => 'Rhode Island', 'SC' => 'South Carolina',
+                        'SD' => 'South Dakota', 'TN' => 'Tennessee', 'TX' => 'Texas', 'UT' => 'Utah', 'VT' => 'Vermont',
+                        'VA' => 'Virginia', 'WA' => 'Washington', 'WV' => 'West Virginia', 'WI' => 'Wisconsin', 'WY' => 'Wyoming',
+                        'DC' => 'District of Columbia'
+                    );
+                    
+                    if (isset($state_codes[$this->geo_data['region_code']])) {
+                        $message = sprintf(
+                            __('Sorry, we are not currently offering services in %s. If you believe this is an error, please contact our support team.', 'aqm-security'),
+                            $state_codes[$this->geo_data['region_code']]
+                        );
+                    }
+                }
+            } elseif (!empty($this->geo_data['country'])) {
+                // International visitor - always use country name
+                $message = sprintf(
+                    __('Sorry, we are not currently offering services in %s. If you believe this is an error, please contact our support team.', 'aqm-security'),
+                    $this->geo_data['country']
+                );
+            }
+        }
+        
+        // Apply filters to message (for backward compatibility)
+        return apply_filters('aqm_security_blocked_message', $message);
+    }
+    
+    /**
      * Log visitor access explicitly - separate from the geolocation check
      * 
      * @param bool $is_test_mode Whether we're in test mode
@@ -598,6 +685,8 @@ class AQM_Security_Public {
         }
     }
     
+    // The get_formatted_blocked_message method is now implemented as a public method above
+    
     /**
      * Replace any form content with blocked message
      */
@@ -610,11 +699,14 @@ class AQM_Security_Public {
         if (strpos($content, '[formidable') !== false || 
             strpos($content, '[display-frm-data') !== false) {
             
-            // Get blocked message
-            $blocked_message = get_option('aqm_security_blocked_message', 'Access to this form is restricted based on your location.');
+            // Get formatted blocked message
+            $blocked_message = $this->get_formatted_blocked_message();
             
-            // Create the message HTML
-            $message_html = '<div class="aqm-security-blocked-message">' . esc_html($blocked_message) . '</div>';
+            // Create the styled message HTML
+            $message_html = '<div class="aqm-security-blocked-message" style="background-color: #f8d7da; color: #721c24; padding: 15px; border: 1px solid #f5c6cb; border-radius: 4px; margin: 20px 0;">';
+            $message_html .= '<h3 style="margin-top: 0;">' . __('Access Restricted', 'aqm-security') . '</h3>';
+            $message_html .= '<p>' . wp_kses_post($blocked_message) . '</p>';
+            $message_html .= '</div>';
             
             // Use regex to replace all formidable shortcodes with the blocked message
             $content = preg_replace('/\[formidable.*?\]/', $message_html, $content);
@@ -628,8 +720,8 @@ class AQM_Security_Public {
      * Shortcode replacement for blocked forms
      */
     public function blocked_form_shortcode($atts, $content = '') {
-        // Get blocked message
-        $blocked_message = get_option('aqm_security_blocked_message', 'Access to this form is restricted based on your location.');
+        // Get formatted blocked message with location details
+        $blocked_message = $this->get_formatted_blocked_message();
         
         // Create the message HTML with a specific class for styling
         return '<div class="aqm-security-blocked-message">' . esc_html($blocked_message) . '</div>';
@@ -639,8 +731,8 @@ class AQM_Security_Public {
      * Prevent the form from being displayed
      */
     public function prevent_form_display($form, $form_id = 0, $key = '') {
-        // Get blocked message
-        $blocked_message = get_option('aqm_security_blocked_message', 'Access to this form is restricted based on your location.');
+        // Get formatted blocked message with location details
+        $blocked_message = $this->get_formatted_blocked_message();
         
         // Add debug info
         AQM_Security_API::debug_log("Preventing form display for form ID: $form_id");
@@ -755,22 +847,47 @@ class AQM_Security_Public {
     }
     
     /**
-     * Display blocked message
+     * Display blocked message with personalized location information
      * 
      * @return void
      */
     public function display_blocked_message() {
-        // Get blocked message from options
-        $message = get_option(
-            'aqm_security_blocked_message', 
-            __('Access to this form is restricted based on your location.', 'aqm-security')
-        );
+        // Get visitor data
+        $visitor = $this->get_visitor_data(true); // Force fresh data
         
-        // Apply filters to message
+        // Extract location information
+        $country_name = isset($visitor['country_name']) ? $visitor['country_name'] : '';
+        $region_name = isset($visitor['region_name']) ? $visitor['region_name'] : '';
+        $region_code = isset($visitor['region_code']) ? $visitor['region_code'] : '';
+        
+        // Create personalized message based on location
+        $message = '';
+        
+        if (!empty($region_name) && $country_name == 'United States') {
+            // For US visitors, mention their state
+            $message = sprintf(
+                __('Sorry, we are not currently offering services in %s. If you believe this is an error, please contact our support team.', 'aqm-security'),
+                $region_name
+            );
+        } elseif (!empty($country_name)) {
+            // For international visitors, mention their country
+            $message = sprintf(
+                __('Sorry, we are not currently offering services in %s. If you believe this is an error, please contact our support team.', 'aqm-security'),
+                $country_name
+            );
+        } else {
+            // Fallback message if location can't be determined
+            $message = __('Sorry, we are not currently offering services in your location. If you believe this is an error, please contact our support team.', 'aqm-security');
+        }
+        
+        // Apply filters to message (for backward compatibility)
         $message = apply_filters('aqm_security_blocked_message', $message);
         
-        // Display message
-        echo '<div class="aqm-security-blocked-message">' . wp_kses_post($message) . '</div>';
+        // Display message with some styling
+        echo '<div class="aqm-security-blocked-message" style="background-color: #f8d7da; color: #721c24; padding: 15px; border: 1px solid #f5c6cb; border-radius: 4px; margin: 20px 0;">';
+        echo '<h3 style="margin-top: 0;">' . __('Access Restricted', 'aqm-security') . '</h3>';
+        echo '<p>' . wp_kses_post($message) . '</p>';
+        echo '</div>';
         exit;
     }
     

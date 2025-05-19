@@ -25,6 +25,31 @@ class AQM_Security {
         
         // Create log table on plugin load
         AQM_Security_Logger::maybe_create_table();
+        
+        // Setup scheduled task for log purging
+        $this->setup_scheduled_tasks();
+    }
+    
+    /**
+     * Setup scheduled tasks for the plugin
+     */
+    private function setup_scheduled_tasks() {
+        // Schedule daily log purging if not already scheduled
+        if (!wp_next_scheduled('aqm_security_purge_old_logs')) {
+            wp_schedule_event(time(), 'daily', 'aqm_security_purge_old_logs');
+        }
+        
+        // Add action for the scheduled task
+        add_action('aqm_security_purge_old_logs', array($this, 'purge_old_logs'));
+    }
+    
+    /**
+     * Purge old logs based on retention settings
+     */
+    public function purge_old_logs() {
+        if (class_exists('AQM_Security_Logger')) {
+            AQM_Security_Logger::purge_old_logs();
+        }
     }
 
     /**
@@ -47,6 +72,9 @@ class AQM_Security {
         
         // The class responsible for logging visitor information
         require_once AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-security-logger.php';
+        
+        // The class responsible for admin bar notifications
+        require_once AQM_SECURITY_PLUGIN_DIR . 'public/class-aqm-security-admin-bar.php';
 
         $this->loader = new AQM_Security_Loader();
     }

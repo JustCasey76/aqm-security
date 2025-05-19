@@ -126,17 +126,38 @@ class AQM_Security_Admin {
         register_setting('aqm_security_options', 'aqm_security_enable_debug');
         register_setting('aqm_security_options', 'aqm_security_test_mode');
         register_setting('aqm_security_options', 'aqm_security_test_ip');
-        register_setting('aqm_security_options', 'aqm_security_blocked_message');
+        // Blocked message option removed - now using hardcoded personalized messages
         register_setting('aqm_security_options', 'aqm_security_log_throttle', array(
             'default' => 86400, // Default to 24 hours (86400 seconds)
             'sanitize_callback' => 'absint' // Ensure it's a positive integer
         ));
         
-        // Add callback to clear visitor cache when settings are updated
+        register_setting('aqm_security_options', 'aqm_security_log_retention', array(
+            'default' => 30, // Default to 30 days
+            'sanitize_callback' => 'absint' // Ensure it's a positive integer
+        ));
+        
+        // Handle settings import if submitted
+        if (isset($_FILES['aqm_security_import_file']) && isset($_POST['aqm_security_import_nonce'])) {
+            $this->import_settings();
+        }
+        
+        // Handle settings export if requested
+        if (isset($_POST['aqm_security_export']) && isset($_POST['aqm_security_export_nonce'])) {
+            $this->export_settings();
+        }
+        
+        // Add callback to clear visitor cache when ANY settings are updated
+        add_action('update_option_aqm_security_api_key', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_blocked_ips', array($this, 'clear_visitor_cache'), 10, 2);
         add_action('update_option_aqm_security_allowed_countries', array($this, 'clear_visitor_cache'), 10, 2);
         add_action('update_option_aqm_security_allowed_states', array($this, 'clear_visitor_cache'), 10, 2);
-        // ZIP code option removed in version 2.0.7
-        add_action('update_option_aqm_security_blocked_ips', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_enable_debug', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_test_mode', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_test_ip', array($this, 'clear_visitor_cache'), 10, 2);
+        // Blocked message option hook removed - now using hardcoded personalized messages
+        add_action('update_option_aqm_security_log_throttle', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_log_retention', array($this, 'clear_visitor_cache'), 10, 2);
         
         // Add API settings section
         add_settings_section(
@@ -190,22 +211,7 @@ class AQM_Security_Admin {
             'aqm_security_rules_section'
         );
         
-        // Add message settings section
-        add_settings_section(
-            'aqm_security_message_settings_section',
-            __('Message Settings', 'aqm-security'),
-            array($this, 'render_message_settings_section'),
-            'aqm-security'
-        );
-        
-        // Add blocked message field
-        add_settings_field(
-            'aqm_security_blocked_message',
-            __('Blocked Message', 'aqm-security'),
-            array($this, 'render_blocked_message_field'),
-            'aqm-security',
-            'aqm_security_message_settings_section'
-        );
+        // Message settings section removed - now using hardcoded personalized messages
         
         // Add advanced section
         add_settings_section(
@@ -248,6 +254,15 @@ class AQM_Security_Admin {
             'aqm_security_log_throttle',
             __('Visitor Logging Throttle', 'aqm-security'),
             array($this, 'render_log_throttle_field'),
+            'aqm-security',
+            'aqm_security_advanced_section'
+        );
+        
+        // Add log retention field
+        add_settings_field(
+            'aqm_security_log_retention',
+            __('Log Data Retention', 'aqm-security'),
+            array($this, 'render_log_retention_field'),
             'aqm-security',
             'aqm_security_advanced_section'
         );
@@ -384,29 +399,7 @@ class AQM_Security_Admin {
         // This field has been removed
     }
     
-    /**
-     * Render message settings section
-     */
-    public function render_message_settings_section() {
-        echo '<p>' . __('Configure the message shown to blocked visitors when forms are hidden.', 'aqm-security') . '</p>';
-    }
-    
-    /**
-     * Render blocked message field
-     */
-    public function render_blocked_message_field() {
-        $value = get_option('aqm_security_blocked_message', __('Form access is restricted based on your location.', 'aqm-security'));
-        
-        wp_editor($value, 'aqm_security_blocked_message', array(
-            'textarea_name' => 'aqm_security_blocked_message',
-            'textarea_rows' => 5,
-            'media_buttons' => true,
-            'teeny'         => false,
-            'quicktags'     => true,
-        ));
-        
-        echo '<p class="description">' . __('This message will be displayed instead of Formidable Forms for visitors from blocked locations.', 'aqm-security') . '</p>';
-    }
+    // Message settings section and blocked message field rendering functions removed - now using hardcoded personalized messages
     
     /**
      * Render advanced section
@@ -538,12 +531,58 @@ class AQM_Security_Admin {
     }
     
     /**
+     * Render log retention field
+     */
+    public function render_log_retention_field() {
+        $retention_days = intval(get_option('aqm_security_log_retention', 30));
+        
+        // Create dropdown options for common retention periods
+        $options = array(
+            1 => __('1 day', 'aqm-security'),
+            2 => __('2 days', 'aqm-security'),
+            3 => __('3 days', 'aqm-security'),
+            7 => __('1 week', 'aqm-security'),
+            14 => __('2 weeks', 'aqm-security'),
+            30 => __('1 month', 'aqm-security'),
+            60 => __('2 months', 'aqm-security'),
+            90 => __('3 months', 'aqm-security'),
+            180 => __('6 months', 'aqm-security'),
+            365 => __('1 year', 'aqm-security'),
+            730 => __('2 years', 'aqm-security'),
+            0 => __('Forever (never delete)', 'aqm-security')
+        );
+        
+        echo '<select id="aqm_security_log_retention" name="aqm_security_log_retention">';
+        
+        foreach ($options as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($retention_days, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        
+        echo '</select>';
+        echo '<p class="description">' . __('How long to keep visitor log data before automatically deleting it. Set to "Forever" to keep logs indefinitely.', 'aqm-security') . '</p>';
+    }
+    
+
+
+    /**
      * Display the plugin settings page
      */
     public function display_plugin_settings_page() {
         ?>
         <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+            <h1><?php _e('AQM Security Settings', 'aqm-security'); ?></h1>
+            
+            <!-- Cache clearing button -->
+            <div class="aqm-security-cache-actions">
+                <button type="button" id="aqm_security_clear_cache" class="button button-secondary">
+                    <span class="dashicons dashicons-update" style="vertical-align: text-bottom;"></span> 
+                    <?php _e('Clear Geolocation Cache', 'aqm-security'); ?>
+                </button>
+                <span id="aqm_security_cache_result" style="margin-left: 10px; display: inline-block;"></span>
+                <p class="description">
+                    <?php _e('Clear the visitor geolocation cache to see your settings changes immediately.', 'aqm-security'); ?>
+                </p>
+            </div>
             
             <form method="post" action="options.php">
                 <?php
@@ -556,6 +595,38 @@ class AQM_Security_Admin {
                 submit_button();
                 ?>
             </form>
+            
+            <!-- Export/Import Settings -->
+            <div class="aqm-security-export-import" style="margin-top: 30px; background: #fff; padding: 20px; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                <h2><?php _e('Export/Import Settings', 'aqm-security'); ?></h2>
+                <p><?php _e('Export your settings to a JSON file that you can use to backup or transfer to another site.', 'aqm-security'); ?></p>
+                
+                <!-- Export Settings -->
+                <div class="aqm-security-export" style="margin-bottom: 20px;">
+                    <h3><?php _e('Export Settings', 'aqm-security'); ?></h3>
+                    <form method="post" action="">
+                        <?php wp_nonce_field('aqm_security_export_nonce', 'aqm_security_export_nonce'); ?>
+                        <p>
+                            <input type="submit" name="aqm_security_export" value="<?php _e('Export Settings', 'aqm-security'); ?>" class="button button-primary">
+                        </p>
+                    </form>
+                </div>
+                
+                <!-- Import Settings -->
+                <div class="aqm-security-import">
+                    <h3><?php _e('Import Settings', 'aqm-security'); ?></h3>
+                    <form method="post" enctype="multipart/form-data" action="">
+                        <?php wp_nonce_field('aqm_security_import_nonce', 'aqm_security_import_nonce'); ?>
+                        <p>
+                            <input type="file" name="aqm_security_import_file" accept=".json">
+                        </p>
+                        <p class="description"><?php _e('Select a JSON file exported from AQM Security.', 'aqm-security'); ?></p>
+                        <p>
+                            <input type="submit" name="aqm_security_import" value="<?php _e('Import Settings', 'aqm-security'); ?>" class="button button-primary">
+                        </p>
+                    </form>
+                </div>
+            </div>
         </div>
         <?php
     }
@@ -805,28 +876,217 @@ class AQM_Security_Admin {
             wp_send_json_error(array('message' => __('Security check failed.', 'aqm-security')));
         }
         
-        // Clear the cache
-        AQM_Security_API::clear_geolocation_cache();
+        // Clear the cache and get count of items removed
+        $count = AQM_Security_API::clear_geolocation_cache();
         
         // Log the action
         AQM_Security_API::debug_log('Visitor cache cleared manually by admin');
         
         // Send success response
         wp_send_json_success(array(
-            'message' => __('Visitor geolocation cache cleared successfully!', 'aqm-security'),
+            'message' => sprintf(__('Visitor geolocation cache cleared. %d items removed.', 'aqm-security'), $count),
             'timestamp' => current_time('mysql')
         ));
     }
     
     /**
-     * Clear visitor cache when settings are updated
+     * Export plugin settings to a JSON file
+     */
+    public function export_settings() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['aqm_security_export_nonce'], 'aqm_security_export_nonce')) {
+            wp_die(__('Security check failed. Please try again.', 'aqm-security'));
+        }
+        
+        // Define the settings to export
+        $settings_to_export = array(
+            'aqm_security_api_key' => get_option('aqm_security_api_key', ''),
+            'aqm_security_blocked_ips' => get_option('aqm_security_blocked_ips', ''),
+            'aqm_security_allowed_countries' => get_option('aqm_security_allowed_countries', ''),
+            'aqm_security_allowed_states' => get_option('aqm_security_allowed_states', ''),
+            'aqm_security_blocked_message' => get_option('aqm_security_blocked_message', ''),
+            'aqm_security_log_throttle' => get_option('aqm_security_log_throttle', 86400),
+            'aqm_security_log_retention' => get_option('aqm_security_log_retention', 30),
+            // Don't export debug and test mode settings as they're environment-specific
+        );
+        
+        // Add metadata
+        $export_data = array(
+            'metadata' => array(
+                'plugin' => 'AQM Security',
+                'version' => AQM_SECURITY_VERSION,
+                'exported_at' => current_time('mysql'),
+                'site_url' => get_site_url(),
+            ),
+            'settings' => $settings_to_export
+        );
+        
+        // Generate JSON
+        $json = json_encode($export_data, JSON_PRETTY_PRINT);
+        
+        // Set headers for download
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename=aqm-security-settings-' . date('Y-m-d') . '.json');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
+        // Output JSON and exit
+        echo $json;
+        exit;
+    }
+    
+    /**
+     * Import plugin settings from a JSON file
+     */
+    public function import_settings() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['aqm_security_import_nonce'], 'aqm_security_import_nonce')) {
+            add_settings_error(
+                'aqm_security_import',
+                'aqm_security_import_error',
+                __('Security check failed. Please try again.', 'aqm-security'),
+                'error'
+            );
+            return;
+        }
+        
+        // Check file upload
+        if (!isset($_FILES['aqm_security_import_file']['tmp_name']) || empty($_FILES['aqm_security_import_file']['tmp_name'])) {
+            add_settings_error(
+                'aqm_security_import',
+                'aqm_security_import_error',
+                __('No file uploaded. Please select a settings file to import.', 'aqm-security'),
+                'error'
+            );
+            return;
+        }
+        
+        // Get file contents
+        $file_contents = file_get_contents($_FILES['aqm_security_import_file']['tmp_name']);
+        if (empty($file_contents)) {
+            add_settings_error(
+                'aqm_security_import',
+                'aqm_security_import_error',
+                __('Uploaded file is empty. Please select a valid settings file.', 'aqm-security'),
+                'error'
+            );
+            return;
+        }
+        
+        // Decode JSON
+        $import_data = json_decode($file_contents, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            add_settings_error(
+                'aqm_security_import',
+                'aqm_security_import_error',
+                __('Invalid JSON file. Please upload a valid settings export file.', 'aqm-security'),
+                'error'
+            );
+            return;
+        }
+        
+        // Validate file structure
+        if (!isset($import_data['metadata']) || !isset($import_data['settings']) || 
+            !isset($import_data['metadata']['plugin']) || $import_data['metadata']['plugin'] !== 'AQM Security') {
+            add_settings_error(
+                'aqm_security_import',
+                'aqm_security_import_error',
+                __('Invalid settings file. This does not appear to be an AQM Security settings export.', 'aqm-security'),
+                'error'
+            );
+            return;
+        }
+        
+        // Import settings
+        $settings = $import_data['settings'];
+        $updated = 0;
+        
+        // Update each setting
+        foreach ($settings as $option_name => $option_value) {
+            // Skip if option name doesn't start with our prefix
+            if (strpos($option_name, 'aqm_security_') !== 0) {
+                continue;
+            }
+            
+            // Update option
+            update_option($option_name, $option_value);
+            $updated++;
+        }
+        
+        // Clear cache after import
+        AQM_Security_API::clear_geolocation_cache();
+        
+        // Show success message
+        add_settings_error(
+            'aqm_security_import',
+            'aqm_security_import_success',
+            sprintf(__('Settings imported successfully. %d settings were updated.', 'aqm-security'), $updated),
+            'success'
+        );
+    }
+    
+    /**
+     * Recheck visitor status when settings are updated
      */
     public function clear_visitor_cache($old_value, $new_value) {
-        // Clear any existing visitor data transients to ensure settings take effect immediately
+        // CRITICAL: Clear any existing visitor data transients to ensure settings take effect immediately
         AQM_Security_API::clear_geolocation_cache();
+        
+        // Force clear the current visitor's cache specifically
+        if (class_exists('AQM_Security_API')) {
+            $current_ip = AQM_Security_API::get_client_ip(false); // Get real IP, not test IP
+            $transient_key = 'aqm_security_' . md5($current_ip);
+            delete_transient($transient_key);
+            error_log("[AQM Security] Specifically cleared cache for current visitor IP: {$current_ip}");
+        }
         
         // Force log a message to indicate settings were updated
         error_log('[AQM Security] Settings updated: forcing visitor cache clear');
+        
+        // IMPROVED: Instead of clearing all logs, recheck status for existing visitors
+        if (class_exists('AQM_Security_Logger')) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . AQM_Security_Logger::TABLE_NAME;
+            
+            // Get all unique visitor IPs from the logs
+            $visitor_ips = $wpdb->get_col("SELECT DISTINCT ip FROM {$table_name}");
+            $count = count($visitor_ips);
+            error_log("[AQM Security] Found {$count} unique visitor IPs to recheck after settings update");
+            
+            // Recheck each visitor's status based on new settings
+            $updated = 0;
+            foreach ($visitor_ips as $ip) {
+                // Get fresh geolocation data for this IP
+                $visitor_data = AQM_Security_API::get_visitor_geolocation(true, $ip);
+                
+                // Check if visitor is allowed based on new settings
+                $is_allowed = AQM_Security_API::is_visitor_allowed($visitor_data);
+                
+                // Update the visitor's status in the logs
+                // CRITICAL: Force immediate update of ALL records for this IP
+                $result = $wpdb->query($wpdb->prepare(
+                    "UPDATE {$table_name} SET is_allowed = %d, last_check = %s WHERE ip = %s",
+                    $is_allowed ? 1 : 0,
+                    current_time('mysql'),
+                    $ip
+                ));
+                
+                // Log the result
+                if ($result !== false) {
+                    error_log("[AQM Security] Updated {$result} log entries for IP: {$ip}, new status: " . ($is_allowed ? 'ALLOWED' : 'BLOCKED'));
+                    $updated += $result;
+                } else {
+                    error_log("[AQM Security] Failed to update log entries for IP: {$ip}");
+                }
+            }
+            
+            error_log("[AQM Security] Updated status for {$updated} visitor IPs based on new settings");
+            
+            // Also purge old logs based on retention setting
+            $purged = AQM_Security_Logger::purge_old_logs();
+            error_log("[AQM Security] Purged {$purged} old log entries after settings update");
+        }
         
         // If settings that affect visitor access have changed, clear all Formidable Forms caches too
         $access_settings = ['allowed_countries', 'allowed_states', 'test_mode', 'test_ip'];
