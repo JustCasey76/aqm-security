@@ -3,7 +3,7 @@
  * Plugin Name: AQM Security
  * Plugin URI: https://github.com/JustCasey76/aqm-security
  * Description: Geolocation-based security plugin using ipapi.com to control access to Formidable Forms.
- * Version: 2.1.0
+ * Version: 2.1.1
  * Author: AQM
  * Author URI: https://justcasey76.com
  * Text Domain: aqm-security
@@ -19,7 +19,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('AQM_SECURITY_VERSION', '2.1.0');
+define('AQM_SECURITY_VERSION', '2.1.1');
 define('AQM_SECURITY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AQM_SECURITY_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('AQM_SECURITY_BASENAME', plugin_basename(__FILE__));

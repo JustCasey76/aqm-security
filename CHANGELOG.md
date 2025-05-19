@@ -1,5 +1,9 @@
 # AQM Security Plugin Changelog
 
+## 2.1.1 - May 19, 2025
+- Enhanced admin bar to always show location and status information for administrators, including in the admin area
+- Added admin_head hook to ensure admin bar styles are properly loaded in the WordPress admin dashboard
+
 ## 2.1.0 - May 19, 2025
 - Implemented personalized location-based blocked messages
 - Removed configurable blocked message from settings page

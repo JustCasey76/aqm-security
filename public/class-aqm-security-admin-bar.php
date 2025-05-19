@@ -25,7 +25,10 @@ class AQM_Security_Admin_Bar {
     public static function init() {
         // Only add the admin bar for administrators
         add_action( 'admin_bar_menu', array( __CLASS__, 'add_admin_bar_info' ), 999 );
+        
+        // Add styles to both frontend and admin area
         add_action( 'wp_head', array( __CLASS__, 'admin_bar_styles' ) );
+        add_action( 'admin_head', array( __CLASS__, 'admin_bar_styles' ) );
     }
 
     /**
@@ -39,10 +42,7 @@ class AQM_Security_Admin_Bar {
             return;
         }
 
-        // Don't show in admin area
-        if ( is_admin() ) {
-            return;
-        }
+        // Always show for admins, even in admin area
 
         // Get visitor geolocation data
         if ( ! class_exists( 'AQM_Security_API' ) ) {
@@ -134,7 +134,7 @@ class AQM_Security_Admin_Bar {
      */
     public static function admin_bar_styles() {
         // Only for administrators
-        if ( ! current_user_can( 'manage_options' ) || is_admin() ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
         
