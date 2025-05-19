@@ -1,5 +1,9 @@
 # AQM Security Plugin Changelog
 
+## 2.1.2 - May 19, 2025
+- Maintenance release
+- Version number update for WordPress update system compatibility
+
 ## 2.1.1 - May 19, 2025
 - Enhanced admin bar to always show location and status information for administrators, including in the admin area
 - Added admin_head hook to ensure admin bar styles are properly loaded in the WordPress admin dashboard
