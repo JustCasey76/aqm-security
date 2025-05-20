@@ -1375,6 +1375,7 @@ class AQM_Security_Public {
         return $this->has_forms;
     }
     
+   
     /**
      * NEW METHOD: Output buffer callback to catch and replace forms
      * 
@@ -1408,4 +1409,5 @@ class AQM_Security_Public {
         
         return $buffer;
     }
+
 }

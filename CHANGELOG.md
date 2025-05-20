@@ -1,5 +1,9 @@
 # AQM Security Plugin Changelog
 
+## 2.1.6 - May 20, 2025
+- Fixed PHP fatal error: Cannot redeclare AQM_Security_Public::catch_and_replace_forms()
+- Removed duplicate method declaration to prevent PHP errors
+
 ## 2.1.5 - May 20, 2025
 - CRITICAL FIX: Enhanced form submission blocking to prevent form submissions from blocked locations
 - Added multiple server-side checks to catch all form submission methods including AJAX
