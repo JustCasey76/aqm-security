@@ -726,36 +726,7 @@ class AQM_Security_Public {
             return false;
         }
     }
-    
-    /**
-     * Replace any form content with blocked message
-     */
-    public function catch_and_replace_forms($buffer) {
-        // Only process if we're not allowed and the buffer has form content
-        if ($this->is_allowed === false && !empty($buffer)) {
-            // Look for Formidable Forms HTML
-            if (strpos($buffer, 'class="frm_forms') !== false || 
-                strpos($buffer, 'class="frm-show-form') !== false ||
-                strpos($buffer, 'class="with_frm_style') !== false) {
-                
-                // Get the blocked message
-                $message = $this->get_formatted_blocked_message();
-                
-                // Create the styled message HTML
-                $message_html = '<div class="aqm-security-blocked-message" style="background-color: #f8d7da; color: #721c24; padding: 15px; border: 1px solid #f5c6cb; border-radius: 4px; margin: 20px 0;">';
-                $message_html .= '<h3 style="margin-top: 0;">' . __('Access Restricted', 'aqm-security') . '</h3>';
-                $message_html .= '<p>' . wp_kses_post($message) . '</p>';
-                $message_html .= '</div>';
-                
-                // Use regex to replace form HTML with blocked message
-                $buffer = preg_replace('/<div[^>]*class="frm_forms[^>]*>.*?<\/div><\/div>/s', $message_html, $buffer);
-                $buffer = preg_replace('/<div[^>]*class="frm-show-form[^>]*>.*?<\/div><\/div>/s', $message_html, $buffer);
-                $buffer = preg_replace('/<div[^>]*class="with_frm_style[^>]*>.*?<\/div><\/div>/s', $message_html, $buffer);
-            }
-        }
-        
-        return $buffer;
-    }
+
     
     /**
      * Block form submission if visitor is not allowed
