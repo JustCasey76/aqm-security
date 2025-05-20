@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.2.4 - May 20, 2025
+- Fixed PHP syntax error in admin class
+- Corrected missing function declaration for get_test_visitor_data method
+- Resolved parse error that was preventing the plugin from loading
+
 ## 2.2.3 - May 20, 2025
 - Improved error reporting in form testing feature
 - Added detailed error messages to show the specific reason for test failures

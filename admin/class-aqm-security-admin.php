@@ -1400,6 +1400,9 @@ class AQM_Security_Admin {
             ));
         }
     }
+    
+    /**
+     * Get test visitor data for a specific state
      * 
      * @param string $state Two-letter state code
      * @return array Visitor data
