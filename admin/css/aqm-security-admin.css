@@ -43,3 +43,51 @@
 .form-table td textarea {
     min-height: 120px;
 }
+
+/* Form Test Results */
+#aqm_form_test_results {
+    margin-top: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f8f8f8;
+}
+
+#aqm_form_test_results h4 {
+    margin: 0 0 10px 0;
+    padding: 10px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+}
+
+.test-results-list {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.test-results-list li {
+    margin-bottom: 5px;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+.test-results-list li.success {
+    background-color: #ecf7ed;
+    color: #1e7a34;
+    border-left: 3px solid #4caf50;
+}
+
+.test-results-list li.error {
+    background-color: #fde8e8;
+    color: #b71c1c;
+    border-left: 3px solid #e57373;
+}
+
+.test-content span.success {
+    color: #1e7a34;
+    font-weight: bold;
+}
+
+.test-content span.error {
+    color: #b71c1c;
+    font-weight: bold;
+}

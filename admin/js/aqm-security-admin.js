@@ -236,11 +236,100 @@
                 }
             });
         });
-        
         // Auto-submit form when date selector changes on the logs page
         $('#date-selector').on('change', function() {
             $(this).closest('form').submit();
         });
+        
+        // Handle running form tests
+        $('#aqm_run_form_tests').on('click', function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var $spinner = $button.next('.spinner');
+            var $results = $('#aqm_form_test_results');
+            var testLocation = $('#aqm_security_test_location').val();
+            
+            // Disable button and show spinner
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            
+            // Make AJAX request
+            $.ajax({
+                url: aqmSecurityAdmin.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'aqm_security_run_form_tests',
+                    nonce: aqmSecurityAdmin.nonce,
+                    location: testLocation
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var data = response.data;
+                        var resultsHtml = '';
+                        
+                        // Add overall status message
+                        resultsHtml += '<div class="notice notice-' + (data.status === 'success' ? 'success' : 'error') + ' inline"><p><strong>' + data.message + '</strong></p></div>';
+                        
+                        // Add detailed messages
+                        if (data.messages && data.messages.length) {
+                            resultsHtml += '<ul class="test-results-list">';
+                            for (var i = 0; i < data.messages.length; i++) {
+                                var msg = data.messages[i];
+                                resultsHtml += '<li class="' + msg.status + '">' + msg.message + '</li>';
+                            }
+                            resultsHtml += '</ul>';
+                        }
+                        
+                        // Add detailed test information
+                        if (data.details) {
+                            resultsHtml += '<h4>Test Details</h4>';
+                            resultsHtml += '<table class="widefat" style="margin-top: 10px;">';
+                            resultsHtml += '<thead><tr><th>Location</th><th>Expected</th><th>Actual</th><th>Form Submission</th><th>Result</th></tr></thead><tbody>';
+                            
+                            for (var state in data.details) {
+                                var detail = data.details[state];
+                                resultsHtml += '<tr>';
+                                resultsHtml += '<td>' + detail.state + '</td>';
+                                resultsHtml += '<td>' + detail.should_be + '</td>';
+                                resultsHtml += '<td>' + detail.actual + '</td>';
+                                resultsHtml += '<td>' + detail.form_submission + '</td>';
+                                resultsHtml += '<td><span class="' + (detail.passed ? 'success' : 'error') + '">' + (detail.passed ? 'PASSED' : 'FAILED') + '</span></td>';
+                                resultsHtml += '</tr>';
+                            }
+                            
+                            resultsHtml += '</tbody></table>';
+                        }
+                        
+                        // Display results
+                        $results.find('.test-content').html(resultsHtml);
+                        $results.show();
+                    } else {
+                        $results.find('.test-content').html('<div class="notice notice-error inline"><p>' + response.data.message + '</p></div>');
+                        $results.show();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $results.find('.test-content').html('<div class="notice notice-error inline"><p>Error running tests: ' + error + '</p></div>');
+                    $results.show();
+                },
+                complete: function() {
+                    // Re-enable button and hide spinner
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        // Toggle test IP field visibility based on test mode checkbox
+        $('#aqm_security_test_mode').on('change', function() {
+            var isChecked = $(this).is(':checked');
+            $('#aqm_security_auto_test_forms').prop('disabled', !isChecked);
+            $('#aqm_run_form_tests').prop('disabled', !isChecked);
+            
+            if (!isChecked) {
+                $('#aqm_security_auto_test_forms').prop('checked', false);
+            }
+        });
     });
-
 })(jQuery);
