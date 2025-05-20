@@ -545,6 +545,46 @@ class AQM_Security_Admin {
     }
     
     /**
+     * Render automated form testing field
+     */
+    public function render_auto_test_forms_field() {
+        $auto_test = get_option('aqm_security_auto_test_forms', false);
+        $test_mode = get_option('aqm_security_test_mode', false);
+        
+        // Disable if test mode is not enabled
+        $disabled = !$test_mode ? 'disabled="disabled"' : '';
+        
+        echo '<input type="checkbox" id="aqm_security_auto_test_forms" name="aqm_security_auto_test_forms" value="1" ' . checked(1, $auto_test, false) . ' ' . $disabled . ' />';
+        echo '<label for="aqm_security_auto_test_forms">' . __('Run automated form submission tests', 'aqm-security') . '</label>';
+        
+        if (!$test_mode) {
+            echo '<p class="description"><strong>' . __('Test Mode must be enabled to use automated form testing.', 'aqm-security') . '</strong></p>';
+        }
+        
+        echo '<p class="description">' . __('When enabled, the plugin will automatically test form submissions from both allowed and blocked locations.', 'aqm-security') . '</p>';
+        
+        // Add a button to run tests manually
+        echo '<div style="margin-top: 10px;">';
+        echo '<button type="button" id="aqm_run_form_tests" class="button button-secondary"' . ($test_mode ? '' : ' disabled') . '>' . __('Run Form Tests Now', 'aqm-security') . '</button>';
+        echo '<span class="spinner" style="float: none; margin-top: 0; margin-left: 5px;"></span>';
+        echo '</div>';
+        
+        // Add a container for test results
+        echo '<div id="aqm_form_test_results" class="aqm-test-results" style="margin-top: 15px; padding: 10px; background: #f8f8f8; border: 1px solid #ddd; display: none;">';
+        echo '<h4>' . __('Form Test Results', 'aqm-security') . '</h4>';
+        echo '<div class="test-content"></div>';
+        echo '</div>';
+        
+        // If test mode is on, add a "Test Now" button
+        if ($test_mode) {
+            echo '<p><a href="' . esc_url(home_url('/')) . '" target="_blank" class="button">';
+            echo __('View Site with Test IP', 'aqm-security') . '</a>';
+            echo ' <a href="' . esc_url(admin_url('admin.php?page=aqm-security-logs')) . '" class="button button-secondary">';
+            echo __('View Visitor Logs', 'aqm-security') . '</a></p>';
+        }
+    }
+    
+    /**
      * Render logging throttle field
      */
     public function render_log_throttle_field() {

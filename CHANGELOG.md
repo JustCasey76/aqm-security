@@ -1,5 +1,9 @@
 # AQM Security Plugin Changelog
 
+## 2.2.2 - May 20, 2025
+- Fixed missing render_auto_test_forms_field method
+- Resolved PHP error in settings page
+
 ## 2.2.1 - May 20, 2025
 - Simplified form testing by using the test IP address for location detection
 - Removed separate test location dropdown
