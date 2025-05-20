@@ -1,5 +1,8 @@
 # AQM Security Plugin Changelog
 
+## 2.1.7 - May 20, 2025
+- Version bump for testing GitHub Updater functionality
+
 ## 2.1.6 - May 20, 2025
 - Fixed PHP fatal error: Cannot redeclare AQM_Security_Public::catch_and_replace_forms()
 - Removed duplicate method declaration to prevent PHP errors
