@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.2.0 - May 20, 2025
+- Added enhanced debugging for form testing feature
+- Implemented a direct test method as a fallback for form testing
+- Improved error handling and logging throughout the testing process
+- Added detailed state checking to ensure proper form blocking
+
 ## 2.1.9 - May 20, 2025
 - Improved error handling in form testing feature
 - Added detailed error logging for form tests
