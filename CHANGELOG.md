@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.2.1 - May 20, 2025
+- Simplified form testing by using the test IP address for location detection
+- Removed separate test location dropdown
+- Enhanced test IP field with more information about allowed states
+- Improved form testing with automatic detection of contrasting test locations
+
 ## 2.2.0 - May 20, 2025
 - Added enhanced debugging for form testing feature
 - Implemented a direct test method as a fallback for form testing

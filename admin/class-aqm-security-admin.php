@@ -253,16 +253,6 @@ class AQM_Security_Admin {
             array('class' => 'aqm-security-test-ip-field')
         );
         
-        // Add test location field
-        add_settings_field(
-            'aqm_security_test_location',
-            __('Test Location', 'aqm-security'),
-            array($this, 'render_test_location_field'),
-            'aqm-security',
-            'aqm_security_advanced_section',
-            array('class' => 'aqm-security-test-location-field')
-        );
-        
         // Add automated form testing field
         add_settings_field(
             'aqm_security_auto_test_forms',
@@ -481,25 +471,7 @@ class AQM_Security_Admin {
         $test_ip = get_option('aqm_security_test_ip', '');
         $test_mode = get_option('aqm_security_test_mode', false);
         
-        // Add a warning if test mode is enabled but no IP is set
-        if ($test_mode && empty($test_ip)) {
-            echo '<div class="notice notice-warning inline"><p>';
-            echo __('Test mode is enabled but no test IP address is set. Please enter an IP address below.', 'aqm-security');
-            echo '</p></div>';
-        }
-        
-        echo '<input type="text" id="aqm_security_test_ip" name="aqm_security_test_ip" value="' . esc_attr($test_ip) . '" class="regular-text" placeholder="8.8.8.8" />';
-        echo '<p class="description">' . __('Enter an IP address to test. Examples: 8.8.8.8 (US), 212.58.244.22 (UK), 219.76.10.1 (Hong Kong)', 'aqm-security') . '</p>';
-    }
-    
-    /**
-     * Render test location field
-     */
-    public function render_test_location_field() {
-        $test_location = get_option('aqm_security_test_location', 'CT');
-        $test_mode = get_option('aqm_security_test_mode', false);
-        
-        // Get the list of allowed states for reference
+        // Get allowed states for reference
         $allowed_states = get_option('aqm_security_allowed_states', array());
         
         // Ensure allowed_states is always an array
@@ -509,28 +481,17 @@ class AQM_Security_Admin {
         
         $allowed_states_list = !empty($allowed_states) ? implode(', ', $allowed_states) : 'None';
         
-        echo '<select id="aqm_security_test_location" name="aqm_security_test_location">';
-        echo '<option value="CT"' . selected('CT', $test_location, false) . '>Connecticut (CT) - Blocked</option>';
-        echo '<option value="CA"' . selected('CA', $test_location, false) . '>California (CA) - Allowed</option>';
-        echo '<option value="NY"' . selected('NY', $test_location, false) . '>New York (NY) - Test</option>';
-        echo '</select>';
+        // Add a warning if test mode is enabled but no IP is set
+        if ($test_mode && empty($test_ip)) {
+            echo '<div class="notice notice-warning inline"><p>';
+            echo __('Test mode is enabled but no test IP address is set. Please enter an IP address below.', 'aqm-security');
+            echo '</p></div>';
+        }
         
-        echo '<p class="description">' . __('Select a location to simulate for testing. This will override the test IP when running form tests.', 'aqm-security') . '</p>';
+        echo '<input type="text" id="aqm_security_test_ip" name="aqm_security_test_ip" value="' . esc_attr($test_ip) . '" class="regular-text" placeholder="8.8.8.8" />';
+        echo '<p class="description">' . __('Enter an IP address to test. Examples: 8.8.8.8 (US), 212.58.244.22 (UK), 219.76.10.1 (Hong Kong)', 'aqm-security') . '</p>';
+        echo '<p class="description">' . __('This IP address will be used for both viewing the site and running form tests.', 'aqm-security') . '</p>';
         echo '<p class="description">' . __('Currently allowed states: ', 'aqm-security') . '<strong>' . $allowed_states_list . '</strong></p>';
-    }
-    
-    /**
-     * Render automated form testing field
-     */
-    public function render_auto_test_forms_field() {
-        $auto_test = get_option('aqm_security_auto_test_forms', false);
-        $test_mode = get_option('aqm_security_test_mode', false);
-        
-        // Disable if test mode is not enabled
-        $disabled = !$test_mode ? 'disabled="disabled"' : '';
-        
-        echo '<input type="checkbox" id="aqm_security_auto_test_forms" name="aqm_security_auto_test_forms" value="1" ' . checked(1, $auto_test, false) . ' ' . $disabled . ' />';
-        echo '<label for="aqm_security_auto_test_forms">' . __('Run automated form submission tests', 'aqm-security') . '</label>';
         
         if (!$test_mode) {
             echo '<p class="description"><strong>' . __('Test Mode must be enabled to use automated form testing.', 'aqm-security') . '</strong></p>';
@@ -1229,8 +1190,14 @@ class AQM_Security_Admin {
                 return;
             }
         
-        // Get the test location
-        $test_location = isset($_POST['location']) ? sanitize_text_field($_POST['location']) : get_option('aqm_security_test_location', 'CT');
+        // Get the test IP address
+        $test_ip = get_option('aqm_security_test_ip', '');
+        $this->form_test_log('Using test IP: ' . $test_ip);
+        
+        if (empty($test_ip)) {
+            wp_send_json_error(array('message' => __('No test IP address set. Please enter a test IP address.', 'aqm-security')));
+            return;
+        }
         
         // Initialize results array
         $results = array(
@@ -1240,11 +1207,54 @@ class AQM_Security_Admin {
             'details' => array()
         );
         
-        // Run tests for both blocked and allowed locations
+        // Get location data for the test IP
+        if (!class_exists('AQM_Security_API')) {
+            require_once AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-security-api.php';
+        }
+        
+        $geo_data = AQM_Security_API::get_geolocation_data($test_ip);
+        $this->form_test_log('Geo data for IP: ' . json_encode($geo_data));
+        
+        if (empty($geo_data) || !isset($geo_data['region_code'])) {
+            wp_send_json_error(array('message' => __('Could not determine location for test IP. Please try a different IP address.', 'aqm-security')));
+            return;
+        }
+        
+        // Use the actual location from the IP for testing
+        $region_code = $geo_data['region_code'];
+        $region_name = isset($geo_data['region']) ? $geo_data['region'] : $region_code;
+        
+        $this->form_test_log('Detected region: ' . $region_name . ' (' . $region_code . ')');
+        
+        // Create test locations based on the detected region and a contrasting region
         $locations_to_test = array(
-            'CT' => 'Connecticut (Blocked)',
-            'CA' => 'California (Allowed)'
+            $region_code => $region_name . ' (Detected from IP)'
         );
+        
+        // Add a contrasting test location (if in allowed states, test a blocked one; if in blocked states, test an allowed one)
+        $allowed_states = get_option('aqm_security_allowed_states', array());
+        
+        // Ensure allowed_states is always an array
+        if (!is_array($allowed_states)) {
+            $allowed_states = array($allowed_states);
+        }
+        
+        $is_allowed = in_array($region_code, $allowed_states);
+        
+        // Add a contrasting test location
+        if ($is_allowed) {
+            // Current region is allowed, add a blocked one
+            $locations_to_test['CT'] = 'Connecticut (Blocked Test)';
+        } else {
+            // Current region is blocked, add an allowed one
+            if (!empty($allowed_states)) {
+                $test_state = $allowed_states[0];
+                $locations_to_test[$test_state] = $test_state . ' (Allowed Test)';
+            } else {
+                // No allowed states, use CA as default
+                $locations_to_test['CA'] = 'California (Allowed Test)';
+            }
+        }
         
         // Get allowed states for reference
         $allowed_states = get_option('aqm_security_allowed_states', array());
@@ -1393,6 +1403,29 @@ class AQM_Security_Admin {
      * @return bool Whether form submission would be allowed
      */
     /**
+     * Custom logging method for form testing
+     * Writes to a dedicated log file to avoid rate limiting
+     *
+     * @param string $message The message to log
+     */
+    private function form_test_log($message) {
+        $log_file = AQM_SECURITY_PLUGIN_DIR . 'logs/form_test.log';
+        
+        // Create logs directory if it doesn't exist
+        $logs_dir = dirname($log_file);
+        if (!file_exists($logs_dir)) {
+            wp_mkdir_p($logs_dir);
+        }
+        
+        // Add timestamp to message
+        $timestamp = current_time('mysql');
+        $log_message = "[$timestamp] $message\n";
+        
+        // Append to log file
+        file_put_contents($log_file, $log_message, FILE_APPEND);
+    }
+    
+    /**
      * Simplified direct test for form submission blocking
      * This method bypasses the complex logic and directly tests if a visitor would be allowed
      * 
@@ -1401,7 +1434,7 @@ class AQM_Security_Admin {
      */
     private function direct_form_test($visitor_data) {
         try {
-            error_log('[AQM Security] Running direct form test for ' . $visitor_data['region']);
+            $this->form_test_log('Running direct form test for ' . $visitor_data['region']);
             
             // Check if visitor is from an allowed state
             $allowed_states = get_option('aqm_security_allowed_states', array());
@@ -1409,20 +1442,22 @@ class AQM_Security_Admin {
             // Ensure allowed_states is always an array
             if (!is_array($allowed_states)) {
                 $allowed_states = array($allowed_states);
+                $this->form_test_log('Converted allowed_states to array: ' . json_encode($allowed_states));
             }
             
             // Log the allowed states
-            error_log('[AQM Security] Allowed states: ' . json_encode($allowed_states));
+            $this->form_test_log('Allowed states: ' . json_encode($allowed_states));
             
             // Check if the visitor's state is in the allowed list
             $region_code = isset($visitor_data['region_code']) ? $visitor_data['region_code'] : '';
             $is_allowed = in_array($region_code, $allowed_states);
             
-            error_log('[AQM Security] Direct test result for ' . $region_code . ': ' . ($is_allowed ? 'Allowed' : 'Blocked'));
+            $this->form_test_log('Direct test result for ' . $region_code . ': ' . ($is_allowed ? 'Allowed' : 'Blocked'));
+            $this->form_test_log('Visitor data: ' . json_encode($visitor_data));
             
             return $is_allowed;
         } catch (Exception $e) {
-            error_log('[AQM Security] Error in direct form test: ' . $e->getMessage());
+            $this->form_test_log('Error in direct form test: ' . $e->getMessage());
             return false;
         }
     }

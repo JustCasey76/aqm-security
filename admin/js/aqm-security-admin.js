@@ -248,7 +248,6 @@
             var $button = $(this);
             var $spinner = $button.next('.spinner');
             var $results = $('#aqm_form_test_results');
-            var testLocation = $('#aqm_security_test_location').val();
             
             // Disable button and show spinner
             $button.prop('disabled', true);
@@ -260,8 +259,7 @@
                 type: 'POST',
                 data: {
                     action: 'aqm_security_run_form_tests',
-                    nonce: aqmSecurityAdmin.nonce,
-                    location: testLocation
+                    nonce: aqmSecurityAdmin.nonce
                 },
                 success: function(response) {
                     if (response.success) {
