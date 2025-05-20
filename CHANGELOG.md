@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.2.3 - May 20, 2025
+- Improved error reporting in form testing feature
+- Added detailed error messages to show the specific reason for test failures
+- Enhanced JavaScript to display error details in the admin interface
+- Fixed structure of the AJAX handler function
+
 ## 2.2.2 - May 20, 2025
 - Fixed missing render_auto_test_forms_field method
 - Resolved PHP error in settings page

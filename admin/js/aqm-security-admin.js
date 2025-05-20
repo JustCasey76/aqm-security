@@ -303,7 +303,18 @@
                         $results.find('.test-content').html(resultsHtml);
                         $results.show();
                     } else {
-                        $results.find('.test-content').html('<div class="notice notice-error inline"><p>' + response.data.message + '</p></div>');
+                        // Error
+                        var errorMsg = response.data.message || 'Unknown error';
+                        var errorDetails = response.data.details || '';
+                        var errorHtml = '<div class="notice notice-error inline"><p><strong>' + errorMsg + '</strong></p>';
+                        
+                        // Add details if available
+                        if (errorDetails) {
+                            errorHtml += '<p>Details: ' + errorDetails + '</p>';
+                        }
+                        
+                        errorHtml += '</div>';
+                        $results.find('.test-content').html(errorHtml);
                         $results.show();
                     }
                 },

@@ -1373,18 +1373,33 @@ class AQM_Security_Admin {
             $results['message'] = __('Some tests failed. Please check the details below.', 'aqm-security');
         }
         
+        // Return the results
         wp_send_json_success($results);
+        
         } catch (Exception $e) {
             // Log the error
-            error_log('[AQM Security] Error running form tests: ' . $e->getMessage());
+            $error_message = $e->getMessage();
+            error_log('[AQM Security] Form test error: ' . $error_message);
+            $this->form_test_log('Exception: ' . $error_message);
             
-            // Send error response
-            wp_send_json_error(array('message' => 'Error running tests: ' . $e->getMessage()));
+            // Return error message with details
+            wp_send_json_error(array(
+                'message' => __('Error running tests', 'aqm-security'),
+                'details' => $error_message
+            ));
+        } catch (Error $e) {
+            // Log PHP errors
+            $error_message = $e->getMessage();
+            error_log('[AQM Security] PHP Error in form test: ' . $error_message);
+            $this->form_test_log('PHP Error: ' . $error_message);
+            
+            // Return error message with details
+            wp_send_json_error(array(
+                'message' => __('Error running tests', 'aqm-security'),
+                'details' => $error_message
+            ));
         }
     }
-    
-    /**
-     * Get test visitor data for a specific state
      * 
      * @param string $state Two-letter state code
      * @return array Visitor data
