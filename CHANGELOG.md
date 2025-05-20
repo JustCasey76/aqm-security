@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.1.3 - May 20, 2025
+- Fixed PHP 8.2+ deprecation warnings about dynamic property creation
+- Added proper property declarations in AQM_Security and AQM_Security_Public classes
+- Fixed undefined variable warnings in AQM_Security_Logger and AQM_Security_API classes
+- Improved code quality and compatibility with PHP 8.2+
+
 ## 2.1.2 - May 19, 2025
 - Maintenance release
 - Version number update for WordPress update system compatibility

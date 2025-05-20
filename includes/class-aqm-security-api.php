@@ -687,11 +687,14 @@ class AQM_Security_API {
     public static function clear_geolocation_cache() {
         global $wpdb;
         
-        // Delete all transients with our prefix
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%aqm_security_%' AND option_name LIKE '%transient%'");
+        // Delete all transients with our prefix and get count
+        $count1 = $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%aqm_security_%' AND option_name LIKE '%transient%'");
         
-        // Also clear any visitor data transients
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%aqm_security_visitor_data_%'");
+        // Also clear any visitor data transients and get count
+        $count2 = $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%aqm_security_visitor_data_%'");
+        
+        // Calculate total count
+        $count = intval($count1) + intval($count2);
         
         self::debug_log("Geolocation cache cleared. {$count} items removed.");
         

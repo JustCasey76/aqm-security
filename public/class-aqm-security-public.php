@@ -24,6 +24,33 @@ class AQM_Security_Public {
      * @var bool|null
      */
     private $has_forms = null;
+    
+    /**
+     * The name of this plugin.
+     *
+     * @since    1.3.8
+     * @access   public
+     * @var      string    $plugin_name    The name of this plugin.
+     */
+    public $plugin_name;
+
+    /**
+     * The current version of the plugin.
+     *
+     * @since    1.3.8
+     * @access   public
+     * @var      string    $version    The current version of the plugin.
+     */
+    public $version;
+    
+    /**
+     * Original Formidable shortcode handler.
+     *
+     * @since    1.3.8
+     * @access   public
+     * @var      callable    $original_formidable_shortcode    Original Formidable shortcode handler.
+     */
+    public $original_formidable_shortcode;
 
     /**
      * Initialize the class and set its properties.

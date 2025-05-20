@@ -51,7 +51,7 @@ class AQM_Security_Logger {
         $ip = sanitize_text_field($ip);
         $country = sanitize_text_field($country);
         $region = sanitize_text_field($region);
-        $zip = sanitize_text_field($zip);
+        $zip = ''; // Initialize with empty string as it's not passed as a parameter
         $allowed = $allowed ? 1 : 0;
         $country_flag = esc_url_raw($country_flag);
         

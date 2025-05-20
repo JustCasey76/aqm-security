@@ -13,6 +13,24 @@ class AQM_Security {
     protected $loader;
 
     /**
+     * The name of this plugin.
+     *
+     * @since    1.3.8
+     * @access   public
+     * @var      string    $plugin_name    The name of this plugin.
+     */
+    public $plugin_name;
+
+    /**
+     * The current version of the plugin.
+     *
+     * @since    1.3.8
+     * @access   public
+     * @var      string    $version    The current version of the plugin.
+     */
+    public $version;
+
+    /**
      * Define the core functionality of the plugin.
      */
     public function __construct() {
