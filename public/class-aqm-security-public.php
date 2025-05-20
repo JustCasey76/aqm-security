@@ -59,9 +59,14 @@ class AQM_Security_Public {
      * @param      string    $plugin_name       The name of the plugin.
      * @param      string    $version    The version of this plugin.
      */
-    public function __construct($plugin_name = 'aqm-security', $version = '1.0.0') {
+    public function __construct($plugin_name, $version) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
+        
+        // Store the original Formidable shortcode function if it exists
+        if (function_exists('frm_replace_shortcodes')) {
+            $this->original_formidable_shortcode = 'frm_replace_shortcodes';
+        }
         
         // Initialize properties
         $this->is_allowed = null;
@@ -91,6 +96,16 @@ class AQM_Security_Public {
             add_filter('frm_form_options_before_update', array($this, 'check_formidable_options'), 10, 1);
             
             // ENHANCED: Add more hooks to catch all form submission methods
+            add_filter('frm_validate_entry', array($this, 'validate_form_submission'), 10, 2);
+            
+            // Add REST API protection
+            add_filter('rest_pre_dispatch', array($this, 'block_api_for_restricted_visitors'), 10, 3);
+            
+            // Add Admin-Ajax protection
+            add_action('admin_init', array($this, 'protect_ajax_endpoints'));
+            
+            // Add direct database protection
+            add_action('frm_before_create_entry', array($this, 'block_direct_entry_creation'), 10, 2);
             add_action('frm_before_create_entry', array($this, 'block_form_submission_if_needed'), 1, 2);
             add_action('frm_validate_entry', array($this, 'validate_submission_location'), 1, 2);
             
@@ -260,6 +275,11 @@ class AQM_Security_Public {
             if (current_user_can('manage_options')) {
                 AQM_Security_API::debug_log('Admin user detected - still checking geolocation to show accurate form visibility');
             }
+            
+            // TESTING FUNCTION - REMOVE AFTER TESTING
+            // Uncomment one of these lines to test different locations
+            // $visitor = $this->get_test_visitor('CT'); // Test Connecticut (blocked)
+            // $visitor = $this->get_test_visitor('CA'); // Test California (allowed)
             
             // Always get fresh visitor data and FORCE check against IP block list
             $visitor = AQM_Security_API::get_visitor_geolocation(true);
@@ -561,6 +581,125 @@ class AQM_Security_Public {
     }
     
     /**
+     * Block API requests for restricted visitors
+     * This prevents bots from bypassing front-end restrictions via the REST API
+     *
+     * @param mixed $result The result that would be returned
+     * @param WP_REST_Server $server The REST server instance
+     * @param WP_REST_Request $request The request used to generate the response
+     * @return mixed The filtered result
+     */
+    public function block_api_for_restricted_visitors($result, $server, $request) {
+        // Skip for admin users, logged-in users with edit capabilities, or internal requests
+        if (current_user_can('edit_posts') || is_admin() || defined('DOING_CRON') || defined('DOING_AJAX') && DOING_AJAX && is_admin()) {
+            return $result;
+        }
+        
+        // Check if this is a Formidable Forms API request
+        if (strpos($request->get_route(), '/frm/') !== false || 
+            strpos($request->get_route(), '/formidable/') !== false) {
+            
+            // Get visitor data and check if allowed
+            $this->initialize_geolocation_check();
+            if (!$this->is_allowed) {
+                AQM_Security_API::debug_log('BLOCKING API REQUEST: ' . $request->get_route());
+                return new WP_Error(
+                    'aqm_security_blocked',
+                    'Form submissions are not allowed from your location.',
+                    array('status' => 403)
+                );
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Protect AJAX endpoints from unauthorized form submissions
+     * This prevents bots from bypassing front-end restrictions via admin-ajax.php
+     */
+    public function protect_ajax_endpoints() {
+        // Only run on admin-ajax.php requests
+        if (basename($_SERVER['PHP_SELF']) !== 'admin-ajax.php') {
+            return;
+        }
+        
+        // Skip for admin users or users with edit capabilities
+        if (current_user_can('edit_posts') || is_admin()) {
+            return;
+        }
+        
+        // Check if this is a Formidable Forms AJAX action
+        $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : '';
+        if (strpos($action, 'frm_') === 0 || strpos($action, 'formidable') === 0) {
+            // Get visitor data and check if allowed
+            $this->initialize_geolocation_check();
+            if (!$this->is_allowed) {
+                AQM_Security_API::debug_log('BLOCKING AJAX REQUEST: ' . $action);
+                wp_send_json_error(array(
+                    'message' => 'Form submissions are not allowed from your location.'
+                ), 403);
+                exit;
+            }
+        }
+    }
+    
+    /**
+     * Block direct entry creation for restricted visitors
+     * This prevents bots from bypassing front-end restrictions by directly creating entries
+     *
+     * @param array $values The form values
+     * @param object $entry The entry being created
+     */
+    public function block_direct_entry_creation($values, $entry) {
+        // Skip for admin users, logged-in users with edit capabilities, or internal requests
+        if (current_user_can('edit_posts') || is_admin() || defined('DOING_CRON')) {
+            return;
+        }
+        
+        // Skip if we're running form tests
+        if (defined('AQM_SECURITY_RUNNING_FORM_TESTS') && AQM_SECURITY_RUNNING_FORM_TESTS) {
+            return;
+        }
+        
+        // Get visitor data and check if allowed
+        $this->init_visitor_data();
+        if (!$this->is_allowed) {
+            AQM_Security_API::debug_log('BLOCKING DIRECT ENTRY CREATION');
+            wp_die('Form submissions are not allowed from your location.');
+        }
+    }
+    
+    /**
+     * Validate form submission based on visitor location
+     * This adds an additional layer of protection during the validation phase
+     *
+     * @param array $errors The current validation errors
+     * @param array $values The form values
+     * @return array The filtered validation errors
+     */
+    public function validate_form_submission($errors, $values) {
+        // Skip for admin users, logged-in users with edit capabilities, or internal requests
+        if (current_user_can('edit_posts') || is_admin() || defined('DOING_CRON')) {
+            return $errors;
+        }
+        
+        // Skip if we're running form tests
+        if (defined('AQM_SECURITY_RUNNING_FORM_TESTS') && AQM_SECURITY_RUNNING_FORM_TESTS) {
+            return $errors;
+        }
+        
+        // Get visitor data and check if allowed
+        $this->init_visitor_data();
+        if (!$this->is_allowed) {
+            AQM_Security_API::debug_log('BLOCKING FORM VALIDATION');
+            $errors['aqm_security'] = 'Form submissions are not allowed from your location.';
+        }
+        
+        return $errors;
+    }
+    
+    /**
      * Add styles for blocked form messages
      */
     public function add_blocked_form_styles() {
@@ -673,6 +812,47 @@ class AQM_Security_Public {
         
         // Apply filters to message (for backward compatibility)
         return apply_filters('aqm_security_blocked_message', $message);
+    }
+    
+    /**
+     * TESTING FUNCTION - Returns simulated visitor data for testing
+     * Remove this function after testing is complete
+     * 
+     * @param string $state Two-letter state code to simulate (e.g., 'CT' for Connecticut)
+     * @return array Simulated visitor data
+     */
+    private function get_test_visitor($state = 'CT') {
+        $test_data = [
+            'CT' => [
+                'ip' => '1.2.3.4',
+                'country_code' => 'US',
+                'country_name' => 'United States',
+                'region' => 'Connecticut',
+                'region_code' => 'CT',
+                'city' => 'Hartford',
+                'latitude' => 41.7637,
+                'longitude' => -72.6851,
+                'location' => [
+                    'country_flag' => 'https://cdn.ipapi.com/flag/us.png',
+                ],
+            ],
+            'CA' => [
+                'ip' => '5.6.7.8',
+                'country_code' => 'US',
+                'country_name' => 'United States',
+                'region' => 'California',
+                'region_code' => 'CA',
+                'city' => 'Los Angeles',
+                'latitude' => 34.0522,
+                'longitude' => -118.2437,
+                'location' => [
+                    'country_flag' => 'https://cdn.ipapi.com/flag/us.png',
+                ],
+            ],
+        ];
+        
+        AQM_Security_API::debug_log("TESTING MODE: Simulating visitor from {$state}");
+        return isset($test_data[$state]) ? $test_data[$state] : $test_data['CT'];
     }
     
     /**

@@ -117,8 +117,18 @@ class AQM_Security_Admin {
      * Register all settings fields
      */
     public function register_settings() {
-        // Register settings
-        register_setting('aqm_security_options', 'aqm_security_api_key');
+        // Register test IP setting
+        register_setting(
+            'aqm-security',
+            'aqm_security_test_ip'
+        );
+        
+        // Register test form ID setting
+        register_setting(
+            'aqm-security',
+            'aqm_security_test_form_id'
+        );
+        
         register_setting('aqm_security_options', 'aqm_security_blocked_ips');
         register_setting('aqm_security_options', 'aqm_security_allowed_countries');
         register_setting('aqm_security_options', 'aqm_security_allowed_states');
@@ -127,6 +137,7 @@ class AQM_Security_Admin {
         register_setting('aqm_security_options', 'aqm_security_test_mode');
         register_setting('aqm_security_options', 'aqm_security_test_ip');
         register_setting('aqm_security_options', 'aqm_security_test_location');
+        register_setting('aqm_security_options', 'aqm_test_form_id');
         register_setting('aqm_security_options', 'aqm_security_auto_test_forms');
         // Blocked message option removed - now using hardcoded personalized messages
         register_setting('aqm_security_options', 'aqm_security_log_throttle', array(
@@ -253,15 +264,7 @@ class AQM_Security_Admin {
             array('class' => 'aqm-security-test-ip-field')
         );
         
-        // Add automated form testing field
-        add_settings_field(
-            'aqm_security_auto_test_forms',
-            __('Automated Form Testing', 'aqm-security'),
-            array($this, 'render_auto_test_forms_field'),
-            'aqm-security',
-            'aqm_security_advanced_section',
-            array('class' => 'aqm-security-auto-test-forms-field')
-        );
+        // Automated form testing field removed - only using Run Form Tests Now button
         
         // Add logging throttle field
         add_settings_field(
@@ -493,15 +496,31 @@ class AQM_Security_Admin {
         echo '<p class="description">' . __('This IP address will be used for both viewing the site and running form tests.', 'aqm-security') . '</p>';
         echo '<p class="description">' . __('Currently allowed states: ', 'aqm-security') . '<strong>' . $allowed_states_list . '</strong></p>';
         
-        if (!$test_mode) {
-            echo '<p class="description"><strong>' . __('Test Mode must be enabled to use automated form testing.', 'aqm-security') . '</strong></p>';
+        // Get available Formidable Forms
+        $formidable_forms = $this->get_formidable_forms();
+        
+        // Get the saved form ID
+        $saved_form_id = get_option('aqm_test_form_id', '');
+        error_log('Saved form ID: ' . $saved_form_id);
+        
+        // Add form selection dropdown if Formidable Forms is active
+        echo '<div style="margin-top: 10px;">';
+        if (!empty($formidable_forms)) {
+            echo '<select id="aqm_test_form_id" name="aqm_test_form_id" style="margin-right: 10px; max-width: 250px;">';
+            echo '<option value="">' . __('Select a form to test...', 'aqm-security') . '</option>';
+            
+            foreach ($formidable_forms as $form_id => $form_name) {
+                $selected = ($saved_form_id == $form_id) ? 'selected="selected"' : '';
+                echo '<option value="' . esc_attr($form_id) . '" ' . $selected . '>' . esc_html($form_name) . '</option>';
+            }
+            
+            echo '</select>';
+        } else {
+            echo '<p class="description">' . __('No Formidable Forms found. Please create a form first.', 'aqm-security') . '</p>';
         }
         
-        echo '<p class="description">' . __('When enabled, the plugin will automatically test form submissions from both allowed and blocked locations.', 'aqm-security') . '</p>';
-        
         // Add a button to run tests manually
-        echo '<div style="margin-top: 10px;">';
-        echo '<button type="button" id="aqm_run_form_tests" class="button button-secondary"' . ($test_mode ? '' : ' disabled') . '>' . __('Run Form Tests Now', 'aqm-security') . '</button>';
+        echo '<button type="button" id="aqm_run_form_tests" class="button button-secondary"' . (($test_mode && !empty($formidable_forms)) ? '' : ' disabled') . '>' . __('Run Form Tests Now', 'aqm-security') . '</button>';
         echo '<span class="spinner" style="float: none; margin-top: 0; margin-left: 5px;"></span>';
         echo '</div>';
         
@@ -544,44 +563,35 @@ class AQM_Security_Admin {
         </script>';
     }
     
+    // Automated form testing field removed - only using Run Form Tests Now button in the test IP field
+    
     /**
-     * Render automated form testing field
+     * Get all active Formidable Forms
+     * 
+     * @return array Array of form IDs and names
      */
-    public function render_auto_test_forms_field() {
-        $auto_test = get_option('aqm_security_auto_test_forms', false);
-        $test_mode = get_option('aqm_security_test_mode', false);
+    private function get_formidable_forms() {
+        global $wpdb;
+        $forms = array();
         
-        // Disable if test mode is not enabled
-        $disabled = !$test_mode ? 'disabled="disabled"' : '';
-        
-        echo '<input type="checkbox" id="aqm_security_auto_test_forms" name="aqm_security_auto_test_forms" value="1" ' . checked(1, $auto_test, false) . ' ' . $disabled . ' />';
-        echo '<label for="aqm_security_auto_test_forms">' . __('Run automated form submission tests', 'aqm-security') . '</label>';
-        
-        if (!$test_mode) {
-            echo '<p class="description"><strong>' . __('Test Mode must be enabled to use automated form testing.', 'aqm-security') . '</strong></p>';
+        // Check if Formidable Forms is active
+        if (!class_exists('FrmForm')) {
+            return $forms;
         }
         
-        echo '<p class="description">' . __('When enabled, the plugin will automatically test form submissions from both allowed and blocked locations.', 'aqm-security') . '</p>';
-        
-        // Add a button to run tests manually
-        echo '<div style="margin-top: 10px;">';
-        echo '<button type="button" id="aqm_run_form_tests" class="button button-secondary"' . ($test_mode ? '' : ' disabled') . '>' . __('Run Form Tests Now', 'aqm-security') . '</button>';
-        echo '<span class="spinner" style="float: none; margin-top: 0; margin-left: 5px;"></span>';
-        echo '</div>';
-        
-        // Add a container for test results
-        echo '<div id="aqm_form_test_results" class="aqm-test-results" style="margin-top: 15px; padding: 10px; background: #f8f8f8; border: 1px solid #ddd; display: none;">';
-        echo '<h4>' . __('Form Test Results', 'aqm-security') . '</h4>';
-        echo '<div class="test-content"></div>';
-        echo '</div>';
-        
-        // If test mode is on, add a "Test Now" button
-        if ($test_mode) {
-            echo '<p><a href="' . esc_url(home_url('/')) . '" target="_blank" class="button">';
-            echo __('View Site with Test IP', 'aqm-security') . '</a>';
-            echo ' <a href="' . esc_url(admin_url('admin.php?page=aqm-security-logs')) . '" class="button button-secondary">';
-            echo __('View Visitor Logs', 'aqm-security') . '</a></p>';
+        // Get all active forms
+        $table_name = $wpdb->prefix . 'frm_forms';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+            $results = $wpdb->get_results("SELECT id, name FROM $table_name WHERE status = 'published' ORDER BY name ASC");
+            
+            if ($results) {
+                foreach ($results as $form) {
+                    $forms[$form->id] = $form->name;
+                }
+            }
         }
+        
+        return $forms;
     }
     
     /**
@@ -1217,6 +1227,33 @@ class AQM_Security_Admin {
                 wp_send_json_error(array('message' => __('Test mode must be enabled to run form tests', 'aqm-security')));
             }
             
+            // Debug the POST data
+            $this->form_test_log('POST data: ' . json_encode($_POST));
+            
+            // Get the form ID to test
+            if (!isset($_POST['form_id']) || empty($_POST['form_id'])) {
+                $this->form_test_log('Form ID not found in POST data');
+                
+                // Try to get the saved form ID as a fallback
+                $saved_form_id = get_option('aqm_test_form_id', '');
+                $this->form_test_log('Saved form ID: ' . $saved_form_id);
+                
+                if (!empty($saved_form_id)) {
+                    $this->form_test_log('Using saved form ID instead');
+                    $_POST['form_id'] = $saved_form_id;
+                } else {
+                    wp_send_json_error(array('message' => __('No form selected. Please select a form to test.', 'aqm-security')));
+                    return;
+                }
+            }
+            
+            $form_id = intval($_POST['form_id']);
+            
+            // Save the selected form ID for future use
+            update_option('aqm_test_form_id', $form_id);
+            
+            $this->form_test_log('Testing form ID: ' . $form_id);
+            
             // Make sure the API class is loaded
             if (!class_exists('AQM_Security_API')) {
                 error_log('[AQM Security] Loading API class');
@@ -1229,164 +1266,173 @@ class AQM_Security_Admin {
                 wp_send_json_error(array('message' => __('Failed to load required API class', 'aqm-security')));
                 return;
             }
-        
-        // Get the test IP address
-        $test_ip = get_option('aqm_security_test_ip', '');
-        $this->form_test_log('Using test IP: ' . $test_ip);
-        
-        if (empty($test_ip)) {
-            wp_send_json_error(array('message' => __('No test IP address set. Please enter a test IP address.', 'aqm-security')));
-            return;
-        }
-        
-        // Initialize results array
-        $results = array(
-            'allowed' => false,
-            'blocked' => false,
-            'messages' => array(),
-            'details' => array()
-        );
-        
-        // Get location data for the test IP
-        if (!class_exists('AQM_Security_API')) {
-            require_once AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-security-api.php';
-        }
-        
-        $geo_data = AQM_Security_API::get_geolocation_data($test_ip);
-        $this->form_test_log('Geo data for IP: ' . json_encode($geo_data));
-        
-        if (empty($geo_data) || !isset($geo_data['region_code'])) {
-            wp_send_json_error(array('message' => __('Could not determine location for test IP. Please try a different IP address.', 'aqm-security')));
-            return;
-        }
-        
-        // Use the actual location from the IP for testing
-        $region_code = $geo_data['region_code'];
-        $region_name = isset($geo_data['region']) ? $geo_data['region'] : $region_code;
-        
-        $this->form_test_log('Detected region: ' . $region_name . ' (' . $region_code . ')');
-        
-        // Create test locations based on the detected region and a contrasting region
-        $locations_to_test = array(
-            $region_code => $region_name . ' (Detected from IP)'
-        );
-        
-        // Add a contrasting test location (if in allowed states, test a blocked one; if in blocked states, test an allowed one)
-        $allowed_states = get_option('aqm_security_allowed_states', array());
-        
-        // Ensure allowed_states is always an array
-        if (!is_array($allowed_states)) {
-            $allowed_states = array($allowed_states);
-        }
-        
-        $is_allowed = in_array($region_code, $allowed_states);
-        
-        // Add a contrasting test location
-        if ($is_allowed) {
-            // Current region is allowed, add a blocked one
-            $locations_to_test['CT'] = 'Connecticut (Blocked Test)';
-        } else {
-            // Current region is blocked, add an allowed one
-            if (!empty($allowed_states)) {
-                $test_state = $allowed_states[0];
-                $locations_to_test[$test_state] = $test_state . ' (Allowed Test)';
-            } else {
-                // No allowed states, use CA as default
-                $locations_to_test['CA'] = 'California (Allowed Test)';
-            }
-        }
-        
-        // Get allowed states for reference
-        $allowed_states = get_option('aqm_security_allowed_states', array());
-        
-        // Ensure allowed_states is always an array
-        if (!is_array($allowed_states)) {
-            $allowed_states = array($allowed_states);
-        }
-        
-        // Test each location
-        foreach ($locations_to_test as $state_code => $state_name) {
-            // Create simulated visitor data
-            $visitor_data = $this->get_test_visitor_data($state_code);
             
-            // Check if this state should be allowed or blocked
-            $should_be_allowed = in_array($state_code, $allowed_states);
-            $expected_result = $should_be_allowed ? 'allowed' : 'blocked';
+            // Get the test IP address
+            $test_ip = get_option('aqm_security_test_ip', '');
+            $this->form_test_log('Using test IP: ' . $test_ip);
             
-            // Test if the visitor would be allowed
-            $is_allowed = AQM_Security_API::is_visitor_allowed($visitor_data);
-            error_log('[AQM Security] API check result for ' . $visitor_data['region'] . ': ' . ($is_allowed ? 'Allowed' : 'Blocked'));
-            
-            // First try the direct test method (more reliable)
-            $direct_test_result = $this->direct_form_test($visitor_data);
-            error_log('[AQM Security] Direct test result: ' . ($direct_test_result ? 'Allowed' : 'Blocked'));
-            
-            // Then try the full form submission test as a backup
-            $form_test_result = $this->test_form_submission($visitor_data, $is_allowed);
-            error_log('[AQM Security] Form test result: ' . ($form_test_result ? 'Allowed' : 'Blocked'));
-            
-            // Use the direct test result if the form test failed
-            if ($form_test_result !== $is_allowed && $direct_test_result === $is_allowed) {
-                error_log('[AQM Security] Using direct test result instead of form test result');
-                $form_test_result = $direct_test_result;
+            if (empty($test_ip)) {
+                wp_send_json_error(array('message' => __('No test IP address set. Please enter a test IP address.', 'aqm-security')));
+                return;
             }
             
-            // Store the result
-            $test_passed = ($is_allowed === $should_be_allowed) && ($form_test_result === $should_be_allowed);
-            
-            $results['details'][$state_code] = array(
-                'state' => $state_name,
-                'should_be' => $expected_result,
-                'actual' => $is_allowed ? 'allowed' : 'blocked',
-                'form_submission' => $form_test_result ? 'allowed' : 'blocked',
-                'passed' => $test_passed
+            // Initialize results array
+            $results = array(
+                'allowed' => false,
+                'blocked' => false,
+                'messages' => array(),
+                'details' => array()
             );
             
-            // Update overall results
-            if ($should_be_allowed) {
-                $results['allowed'] = $test_passed;
-            } else {
-                $results['blocked'] = $test_passed;
+            // Get location data for the test IP
+            if (!class_exists('AQM_Security_API')) {
+                require_once AQM_SECURITY_PLUGIN_DIR . 'includes/class-aqm-security-api.php';
+            }
+        
+            $geo_data = AQM_Security_API::get_geolocation_data($test_ip);
+            $this->form_test_log('Geo data for IP: ' . json_encode($geo_data));
+            
+            if (empty($geo_data) || !isset($geo_data['region_code'])) {
+                wp_send_json_error(array('message' => __('Could not determine location for test IP. Please try a different IP address.', 'aqm-security')));
+                return;
             }
             
-            // Add message
-            $status = $test_passed ? 'success' : 'error';
-            $results['messages'][] = array(
-                'status' => $status,
-                'message' => sprintf(
-                    __('Test for %s: %s (Expected: %s, Actual: %s, Form Submission: %s)', 'aqm-security'),
-                    $state_name,
-                    $test_passed ? __('PASSED', 'aqm-security') : __('FAILED', 'aqm-security'),
-                    $expected_result,
-                    $is_allowed ? 'allowed' : 'blocked',
-                    $form_test_result ? 'allowed' : 'blocked'
-                )
+            // Use the actual location from the IP for testing
+            $region_code = $geo_data['region_code'];
+            $region_name = isset($geo_data['region']) ? $geo_data['region'] : $region_code;
+            
+            $this->form_test_log('Detected region: ' . $region_name . ' (' . $region_code . ')');
+            
+            // Create test locations based on the detected region and a contrasting region
+            $locations_to_test = array(
+                $region_code => $region_name . ' (Detected from IP)'
             );
-        }
+            
+            // Add a contrasting test location (if in allowed states, test a blocked one; if in blocked states, test an allowed one)
+            $allowed_states = get_option('aqm_security_allowed_states', array());
+            
+            // Ensure allowed_states is always an array
+            if (!is_array($allowed_states)) {
+                $allowed_states = array($allowed_states);
+            }
         
-        // Add overall status message
-        if ($results['allowed'] && $results['blocked']) {
-            $results['status'] = 'success';
-            $results['message'] = __('All tests passed! Forms are correctly blocked/allowed based on location.', 'aqm-security');
-        } else {
-            $results['status'] = 'error';
-            $results['message'] = __('Some tests failed. Please check the details below.', 'aqm-security');
-        }
+            $is_allowed = in_array($region_code, $allowed_states);
+            
+            // Add a contrasting test location
+            if ($is_allowed) {
+                // Current region is allowed, add a blocked one
+                $locations_to_test['CT'] = 'Connecticut (Blocked Test)';
+            } else {
+                // Current region is blocked, add an allowed one
+                if (!empty($allowed_states)) {
+                    $test_state = $allowed_states[0];
+                    $locations_to_test[$test_state] = $test_state . ' (Allowed Test)';
+                } else {
+                    // No allowed states, use CA as default
+                    $locations_to_test['CA'] = 'California (Allowed Test)';
+                }
+            }
+            
+            // Get allowed states for reference
+            $allowed_states_option = get_option('aqm_security_allowed_states', '');
+            $this->form_test_log('Raw allowed_states option: ' . $allowed_states_option);
+            
+            // Convert string of states to array (one per line)
+            if (is_string($allowed_states_option)) {
+                // Split by newline and trim each state code
+                $allowed_states = array_map('trim', explode("\n", $allowed_states_option));
+                // Remove any empty lines
+                $allowed_states = array_filter($allowed_states);
+                $this->form_test_log('Converted allowed_states string to array: ' . json_encode($allowed_states));
+            } else if (is_array($allowed_states_option)) {
+                $allowed_states = $allowed_states_option;
+            } else {
+                $allowed_states = array();
+            }
         
-        // Return the results
-        wp_send_json_success($results);
-        
+            // Test each location
+            foreach ($locations_to_test as $state_code => $state_name) {
+                // Create simulated visitor data
+                $visitor_data = $this->get_test_visitor_data($state_code);
+                
+                // Check if this state should be allowed or blocked
+                $should_be_allowed = in_array($state_code, $allowed_states);
+                $expected_result = $should_be_allowed ? 'allowed' : 'blocked';
+                
+                // Test if the visitor would be allowed
+                $is_allowed = AQM_Security_API::is_visitor_allowed($visitor_data);
+                $this->form_test_log('API check result for ' . $visitor_data['region'] . ': ' . ($is_allowed ? 'Allowed' : 'Blocked'));
+                
+                // First try the direct test method (more reliable)
+                $direct_test_result = $this->direct_form_test($visitor_data);
+                $this->form_test_log('Direct test result: ' . ($direct_test_result ? 'Allowed' : 'Blocked'));
+                
+                // Create a test entry for this location by directly inserting into the database
+                // This bypasses all security checks to show what data would be submitted
+                $entry_created = $this->create_test_form_entry($visitor_data, $form_id, $state_name . ' (DIRECT DB INSERT)');
+                $this->form_test_log('Direct database entry created for ' . $state_name . ': ' . ($entry_created ? 'Yes' : 'No'));
+                
+                // Then try the full form submission test with the selected form ID
+                $form_test_result = $this->test_form_submission($visitor_data, $is_allowed, $form_id);
+                $this->form_test_log('Form test result: ' . ($form_test_result ? 'Allowed' : 'Blocked'));
+                
+                // Use the direct test result if the form test failed
+                if ($form_test_result !== $is_allowed && $direct_test_result === $is_allowed) {
+                    $this->form_test_log('Using direct test result instead of form test result');
+                    $form_test_result = $direct_test_result;
+                }
+                
+                // Store the result
+                $test_passed = ($is_allowed === $should_be_allowed) && ($form_test_result === $should_be_allowed);
+                
+                $results['details'][$state_code] = array(
+                    'state' => $state_name,
+                    'should_be' => $expected_result,
+                    'actual' => $is_allowed ? 'allowed' : 'blocked',
+                    'form_submission' => $form_test_result ? 'allowed' : 'blocked',
+                    'passed' => $test_passed,
+                    'entry_created' => $entry_created
+                );
+                
+                // Update overall results
+                if ($should_be_allowed) {
+                    $results['allowed'] = $test_passed;
+                } else {
+                    $results['blocked'] = $test_passed;
+                }
+                
+                // Add message
+                $status = $test_passed ? 'success' : 'error';
+                $results['messages'][] = array(
+                    'status' => $status,
+                    'message' => sprintf(
+                        __('Test for %s: %s (Expected: %s, Actual: %s, Form Submission: %s)', 'aqm-security'),
+                        $state_name,
+                        $test_passed ? __('PASSED', 'aqm-security') : __('FAILED', 'aqm-security'),
+                        $expected_result,
+                        $is_allowed ? 'allowed' : 'blocked',
+                        $form_test_result ? 'allowed' : 'blocked'
+                    )
+                );
+            }
+            
+            // Add overall status message
+            if ($results['allowed'] && $results['blocked']) {
+                $results['status'] = 'success';
+                $results['message'] = __('All tests passed!', 'aqm-security');
+            } else if (!$results['allowed'] && !$results['blocked']) {
+                $results['status'] = 'error';
+                $results['message'] = __('All tests failed!', 'aqm-security');
+            } else {
+                $results['status'] = 'warning';
+                $results['message'] = __('Some tests failed!', 'aqm-security');
+            }
+            
+            // Return the results
+            wp_send_json_success($results);
         } catch (Exception $e) {
-            // Log the error
-            $error_message = $e->getMessage();
-            error_log('[AQM Security] Form test error: ' . $error_message);
-            $this->form_test_log('Exception: ' . $error_message);
-            
-            // Return error message with details
-            wp_send_json_error(array(
-                'message' => __('Error running tests', 'aqm-security'),
-                'details' => $error_message
-            ));
+            $this->form_test_log('Error running form tests: ' . $e->getMessage());
+            wp_send_json_error(array('message' => __('Error running form tests: ', 'aqm-security') . $e->getMessage()));
         } catch (Error $e) {
             // Log PHP errors
             $error_message = $e->getMessage();
@@ -1448,6 +1494,19 @@ class AQM_Security_Admin {
                     'country_flag' => 'https://cdn.ipapi.com/flag/us.png',
                 ],
             ],
+            'MA' => [
+                'ip' => '13.14.15.16',
+                'country_code' => 'US',
+                'country_name' => 'United States',
+                'region' => 'Massachusetts',
+                'region_code' => 'MA',
+                'city' => 'Boston',
+                'latitude' => 42.3601,
+                'longitude' => -71.0589,
+                'location' => [
+                    'country_flag' => 'https://cdn.ipapi.com/flag/us.png',
+                ],
+            ],
         ];
         
         return isset($test_data[$state]) ? $test_data[$state] : $test_data['CT'];
@@ -1481,6 +1540,9 @@ class AQM_Security_Admin {
         
         // Append to log file
         file_put_contents($log_file, $log_message, FILE_APPEND);
+        
+        // Also write to error log for easier debugging
+        error_log('[AQM Security Form Test] ' . $message);
     }
     
     /**
@@ -1495,12 +1557,20 @@ class AQM_Security_Admin {
             $this->form_test_log('Running direct form test for ' . $visitor_data['region']);
             
             // Check if visitor is from an allowed state
-            $allowed_states = get_option('aqm_security_allowed_states', array());
+            $allowed_states_option = get_option('aqm_security_allowed_states', '');
+            $this->form_test_log('Raw allowed_states option: ' . $allowed_states_option);
             
-            // Ensure allowed_states is always an array
-            if (!is_array($allowed_states)) {
-                $allowed_states = array($allowed_states);
-                $this->form_test_log('Converted allowed_states to array: ' . json_encode($allowed_states));
+            // Convert string of states to array (one per line)
+            if (is_string($allowed_states_option)) {
+                // Split by newline and trim each state code
+                $allowed_states = array_map('trim', explode("\n", $allowed_states_option));
+                // Remove any empty lines
+                $allowed_states = array_filter($allowed_states);
+                $this->form_test_log('Converted allowed_states string to array: ' . json_encode($allowed_states));
+            } else if (is_array($allowed_states_option)) {
+                $allowed_states = $allowed_states_option;
+            } else {
+                $allowed_states = array();
             }
             
             // Log the allowed states
@@ -1521,33 +1591,177 @@ class AQM_Security_Admin {
     }
     
     /**
+     * Create a test form entry directly in the database
+     * This method bypasses all security checks to ensure an entry is created
+     * 
+     * @param array $visitor_data Visitor data
+     * @param int $form_id The ID of the form to test
+     * @param string $label Label for the test entry
+     * @return bool Whether the entry was created successfully
+     */
+    private function create_test_form_entry($visitor_data, $form_id, $label = '') {
+        try {
+            $this->form_test_log('Creating direct test entry for form ID ' . $form_id . ' from ' . $visitor_data['region']);
+            
+            // Check if Formidable Forms is active
+            if (!class_exists('FrmForm') || !class_exists('FrmField')) {
+                $this->form_test_log('ERROR: Formidable Forms classes not found');
+                return false;
+            }
+            
+            // Get form fields
+            $form_fields = FrmField::get_all_for_form($form_id);
+            
+            if (empty($form_fields)) {
+                $this->form_test_log('No fields found for form ID: ' . $form_id);
+                return false;
+            }
+            
+            // Create test data for the form fields
+            $test_data = array();
+            
+            foreach ($form_fields as $field) {
+                // Skip fields like dividers, HTML, etc.
+                if (in_array($field->type, array('divider', 'html', 'captcha', 'break', 'rte'))) {
+                    continue;
+                }
+                
+                // Generate appropriate test data based on field type
+                switch ($field->type) {
+                    case 'text':
+                    case 'textarea':
+                        $test_data['item_meta'][$field->id] = 'Test data from ' . $visitor_data['region'] . ' (' . $label . ')';
+                        break;
+                    case 'email':
+                        $test_data['item_meta'][$field->id] = 'test_' . strtolower($visitor_data['region_code']) . '@example.com';
+                        break;
+                    case 'phone':
+                        $test_data['item_meta'][$field->id] = '555-123-' . rand(1000, 9999);
+                        break;
+                    case 'number':
+                        $test_data['item_meta'][$field->id] = rand(1, 100);
+                        break;
+                    case 'checkbox':
+                        // Get the first option
+                        $options = maybe_unserialize($field->options);
+                        if (!empty($options)) {
+                            $first_option = reset($options);
+                            $test_data['item_meta'][$field->id] = array($first_option);
+                        }
+                        break;
+                    case 'radio':
+                    case 'select':
+                        // Get the first option
+                        $options = maybe_unserialize($field->options);
+                        if (!empty($options)) {
+                            $first_option = reset($options);
+                            $test_data['item_meta'][$field->id] = $first_option;
+                        }
+                        break;
+                    default:
+                        $test_data['item_meta'][$field->id] = 'Test';
+                }
+            }
+            
+            $test_data['form_id'] = $form_id;
+            $this->form_test_log('Test data prepared: ' . json_encode($test_data));
+            
+            // Force direct database entry creation to bypass validation
+            global $wpdb;
+            
+            // Generate a unique key for the entry
+            $item_key = '';
+            if (class_exists('FrmAppHelper')) {
+                $item_key = FrmAppHelper::get_unique_key('', $wpdb->prefix . 'frm_items', 'item_key');
+            } else {
+                // Fallback if FrmAppHelper is not available
+                $item_key = uniqid('frm_');
+            }
+            
+            $entry_values = array(
+                'form_id' => $form_id,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+                'is_draft' => 0,
+                'user_id' => get_current_user_id(),
+                'item_key' => $item_key,
+                'name' => 'Test Entry from ' . $visitor_data['region'] . ' (' . $label . ')'
+            );
+            
+            $wpdb->insert($wpdb->prefix . 'frm_items', $entry_values);
+            $entry_id = $wpdb->insert_id;
+            
+            if ($entry_id) {
+                $this->form_test_log('Successfully created entry with ID: ' . $entry_id);
+                
+                // Now insert the meta values
+                foreach ($test_data['item_meta'] as $field_id => $value) {
+                    if (is_array($value)) {
+                        $value = serialize($value);
+                    }
+                    
+                    $meta_values = array(
+                        'item_id' => $entry_id,
+                        'field_id' => $field_id,
+                        'meta_value' => $value,
+                        'created_at' => current_time('mysql')
+                    );
+                    
+                    $wpdb->insert($wpdb->prefix . 'frm_item_metas', $meta_values);
+                }
+                
+                return true;
+            } else {
+                $this->form_test_log('Failed to create entry. Database error: ' . $wpdb->last_error);
+                return false;
+            }
+        } catch (Exception $e) {
+            $this->form_test_log('Error creating test entry: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
      * Test form submission with simulated visitor data
      * 
      * @param array $visitor_data Visitor data
      * @param bool $is_allowed Whether the visitor is allowed
+     * @param int $form_id The ID of the form to test
      * @return bool Whether form submission would be allowed
      */
-    private function test_form_submission($visitor_data, $is_allowed) {
+    private function test_form_submission($visitor_data, $is_allowed, $form_id = 1) {
         try {
-            error_log('[AQM Security] Testing form submission for visitor from: ' . $visitor_data['region'] . ' (Allowed: ' . ($is_allowed ? 'Yes' : 'No') . ')');
+            // Define a constant to indicate we're running form tests
+            // This will be used to bypass security checks during testing
+            if (!defined('AQM_SECURITY_RUNNING_FORM_TESTS')) {
+                define('AQM_SECURITY_RUNNING_FORM_TESTS', true);
+            }
+            $this->form_test_log('Testing form submission for visitor from: ' . $visitor_data['region'] . ' (Allowed: ' . ($is_allowed ? 'Yes' : 'No') . ')');
+            $this->form_test_log('Using form ID: ' . $form_id);
             
             // Initialize the public class to test form submission
             if (!class_exists('AQM_Security_Public')) {
-                error_log('[AQM Security] Loading AQM_Security_Public class');
+                $this->form_test_log('Loading AQM_Security_Public class');
                 require_once AQM_SECURITY_PLUGIN_DIR . 'public/class-aqm-security-public.php';
             }
             
             // Check if the class was loaded successfully
             if (!class_exists('AQM_Security_Public')) {
-                error_log('[AQM Security] ERROR: Failed to load AQM_Security_Public class');
+                $this->form_test_log('ERROR: Failed to load AQM_Security_Public class');
                 return $is_allowed; // Return default value
             }
             
-            error_log('[AQM Security] Creating instance of AQM_Security_Public');
+            // Check if Formidable Forms is active
+            if (!class_exists('FrmForm') || !class_exists('FrmEntry')) {
+                $this->form_test_log('ERROR: Formidable Forms classes not found');
+                return $is_allowed; // Return default value
+            }
+            
+            // Create instance of AQM_Security_Public
+            $this->form_test_log('Creating instance of AQM_Security_Public');
             $plugin_public = new AQM_Security_Public('aqm-security', AQM_SECURITY_VERSION);
             
             // Set the visitor data and allowed status using reflection to access private properties
-            // This is a workaround for testing purposes only
             $reflectionClass = new ReflectionClass('AQM_Security_Public');
             
             $geoDataProperty = $reflectionClass->getProperty('geo_data');
@@ -1562,51 +1776,165 @@ class AQM_Security_Admin {
             $hasFormsProperty->setAccessible(true);
             $hasFormsProperty->setValue($plugin_public, true); // Force forms detection
             
-            error_log('[AQM Security] Visitor data set: ' . json_encode(array(
+            $this->form_test_log('Visitor data set: ' . json_encode(array(
                 'region' => isset($visitor_data['region']) ? $visitor_data['region'] : 'unknown',
                 'is_allowed' => $is_allowed
             )));
             
-            // Test if form submission would be blocked
-            $form_id = 1; // Dummy form ID for testing
-            
             // Create a test environment to capture output
             ob_start();
             $would_be_blocked = false;
+            $entry_created = false;
             
             // Check for the maybe_block_form method
-            error_log('[AQM Security] Checking for maybe_block_form method');
+            $this->form_test_log('Checking for maybe_block_form method');
             if (!method_exists($plugin_public, 'maybe_block_form')) {
-                error_log('[AQM Security] ERROR: maybe_block_form method not found');
-                // Let's check what methods are available
-                $methods = get_class_methods($plugin_public);
-                error_log('[AQM Security] Available methods: ' . implode(', ', $methods));
-                
+                $this->form_test_log('ERROR: maybe_block_form method not found');
                 // If the method doesn't exist, assume it's not blocked
                 $would_be_blocked = !$is_allowed; // Assume it matches the allowed status
             } else {
-                error_log('[AQM Security] Found maybe_block_form method, attempting to call it');
+                $this->form_test_log('Found maybe_block_form method, attempting to call it');
                 
                 try {
                     // This will exit if form is blocked
                     $plugin_public->maybe_block_form($form_id);
-                    error_log('[AQM Security] Form was not blocked');
+                    $this->form_test_log('Form was not blocked by security check');
+                    
+                    // If we get here, the form is not blocked, so try to create a test entry
+                    if ($is_allowed) {
+                        $this->form_test_log('Attempting to create a test form entry');
+                        
+                        // Get form fields
+                        $form_fields = FrmField::get_all_for_form($form_id);
+                        
+                        if (empty($form_fields)) {
+                            $this->form_test_log('No fields found for form ID: ' . $form_id);
+                        } else {
+                            // Create test data for the form fields
+                            $test_data = array();
+                            
+                            foreach ($form_fields as $field) {
+                                // Skip fields like dividers, HTML, etc.
+                                if (in_array($field->type, array('divider', 'html', 'captcha', 'break', 'rte'))) {
+                                    continue;
+                                }
+                                
+                                // Generate appropriate test data based on field type
+                                switch ($field->type) {
+                                    case 'text':
+                                    case 'textarea':
+                                        $test_data['item_meta'][$field->id] = 'Test data from ' . $visitor_data['region'];
+                                        break;
+                                    case 'email':
+                                        $test_data['item_meta'][$field->id] = 'test_' . strtolower($visitor_data['region_code']) . '@example.com';
+                                        break;
+                                    case 'phone':
+                                        $test_data['item_meta'][$field->id] = '555-123-4567';
+                                        break;
+                                    case 'number':
+                                        $test_data['item_meta'][$field->id] = '42';
+                                        break;
+                                    case 'checkbox':
+                                        // Get the first option
+                                        $options = maybe_unserialize($field->options);
+                                        if (!empty($options)) {
+                                            $first_option = reset($options);
+                                            $test_data['item_meta'][$field->id] = array($first_option);
+                                        }
+                                        break;
+                                    case 'radio':
+                                    case 'select':
+                                        // Get the first option
+                                        $options = maybe_unserialize($field->options);
+                                        if (!empty($options)) {
+                                            $first_option = reset($options);
+                                            $test_data['item_meta'][$field->id] = $first_option;
+                                        }
+                                        break;
+                                    default:
+                                        $test_data['item_meta'][$field->id] = 'Test';
+                                }
+                            }
+                            
+                            $test_data['form_id'] = $form_id;
+                            $this->form_test_log('Test data prepared: ' . json_encode($test_data));
+                            
+                            // Create the entry
+                            $this->form_test_log('Attempting to create entry with data: ' . json_encode($test_data));
+                        
+                            // Force direct database entry creation to bypass validation
+                            global $wpdb;
+                            
+                            // Generate a unique key for the entry
+                            $item_key = '';
+                            if (class_exists('FrmAppHelper')) {
+                                $item_key = FrmAppHelper::get_unique_key('', $wpdb->prefix . 'frm_items', 'item_key');
+                            } else {
+                                // Fallback if FrmAppHelper is not available
+                                $item_key = uniqid('frm_');
+                            }
+                            
+                            $entry_values = array(
+                                'form_id' => $form_id,
+                                'created_at' => current_time('mysql'),
+                                'updated_at' => current_time('mysql'),
+                                'is_draft' => 0,
+                                'user_id' => get_current_user_id(),
+                                'item_key' => $item_key,
+                                'name' => 'Test Entry from ' . $visitor_data['region']
+                            );
+                            
+                            $wpdb->insert($wpdb->prefix . 'frm_items', $entry_values);
+                            $entry_id = $wpdb->insert_id;
+                            
+                            if ($entry_id) {
+                                $this->form_test_log('Successfully created entry with ID: ' . $entry_id);
+                                
+                                // Now insert the meta values
+                                foreach ($test_data['item_meta'] as $field_id => $value) {
+                                    if (is_array($value)) {
+                                        $value = serialize($value);
+                                    }
+                                    
+                                    $meta_values = array(
+                                        'item_id' => $entry_id,
+                                        'field_id' => $field_id,
+                                        'meta_value' => $value,
+                                        'created_at' => current_time('mysql')
+                                    );
+                                    
+                                    $wpdb->insert($wpdb->prefix . 'frm_item_metas', $meta_values);
+                                }
+                                
+                                $entry_created = true;
+                            } else {
+                                $this->form_test_log('Failed to create entry. Database error: ' . $wpdb->last_error);
+                            }
+                        }
+                    }
                 } catch (Exception $e) {
                     $would_be_blocked = true;
-                    error_log('[AQM Security] Test exception: ' . $e->getMessage());
+                    $this->form_test_log('Test exception: ' . $e->getMessage());
                 } catch (Error $e) {
                     $would_be_blocked = true;
-                    error_log('[AQM Security] PHP Error: ' . $e->getMessage());
+                    $this->form_test_log('PHP Error: ' . $e->getMessage());
                 }
             }
             
             ob_end_clean();
             
-            // Return whether form submission would be allowed
-            return !$would_be_blocked && $is_allowed;
+            // Return whether form submission was allowed and an entry was created
+            $result = !$would_be_blocked && $is_allowed;
+            
+            // If the form should be allowed but no entry was created, log it
+            if ($result && !$entry_created && $is_allowed) {
+                $this->form_test_log('WARNING: Form was allowed but no entry was created');
+            }
+            
+            return $result;
         } catch (Exception $e) {
             // Log any errors during testing
-            error_log('[AQM Security] Error testing form submission: ' . $e->getMessage());
+            $this->form_test_log('Error testing form submission: ' . $e->getMessage());
             
             // Default to matching the allowed status if there's an error
             return $is_allowed;

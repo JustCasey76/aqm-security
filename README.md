@@ -25,6 +25,14 @@ A WordPress plugin that provides geolocation-based security to control access to
 
 ## Changelog
 
+### 2.2.7
+- Enhanced security to prevent API-based form submission bypasses
+- Added protection for REST API endpoints
+- Added protection for admin-ajax.php endpoints
+- Added protection against direct database entry creation
+- Improved form testing functionality to create actual test entries
+- Fixed PHP fatal error in visitor data initialization
+
 ### 1.0.1
 - Added GitHub-based update functionality
 - Improved IP detection for local environments

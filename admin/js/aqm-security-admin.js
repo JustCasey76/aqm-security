@@ -253,13 +253,31 @@
             $button.prop('disabled', true);
             $spinner.addClass('is-active');
             
+            // Get the selected form ID
+            var $formSelect = $('select[name="aqm_test_form_id"]');
+            var formId = $formSelect.val();
+            
+            // Debug logging
+            console.log('Form select element:', $formSelect.length ? 'Found' : 'Not found');
+            console.log('Selected form ID:', formId);
+            console.log('All form selects on page:', $('select').map(function() { return this.name; }).get());
+            
+            // Check if a form is selected
+            if (!formId) {
+                alert('Please select a form to test.');
+                $button.prop('disabled', false);
+                $spinner.removeClass('is-active');
+                return;
+            }
+            
             // Make AJAX request
             $.ajax({
                 url: aqmSecurityAdmin.ajaxurl,
                 type: 'POST',
                 data: {
                     action: 'aqm_security_run_form_tests',
-                    nonce: aqmSecurityAdmin.nonce
+                    nonce: aqmSecurityAdmin.nonce,
+                    form_id: formId
                 },
                 success: function(response) {
                     if (response.success) {
