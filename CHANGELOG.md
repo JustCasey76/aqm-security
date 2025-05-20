@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.1.9 - May 20, 2025
+- Improved error handling in form testing feature
+- Added detailed error logging for form tests
+- Fixed issue with allowed states not being properly detected in test mode
+- Enhanced compatibility with different WordPress configurations
+
 ## 2.1.8 - May 20, 2025
 - Added automated form testing feature to test form submission blocking
 - Added test location selector to simulate visitors from different states
