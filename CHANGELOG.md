@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.2.5 - May 20, 2025
+- Fixed property access error in form testing feature
+- Implemented PHP Reflection to properly access private properties for testing
+- Resolved "Cannot access private property" error when running form tests
+
 ## 2.2.4 - May 20, 2025
 - Fixed PHP syntax error in admin class
 - Corrected missing function declaration for get_test_visitor_data method

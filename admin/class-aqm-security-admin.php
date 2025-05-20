@@ -1546,10 +1546,21 @@ class AQM_Security_Admin {
             error_log('[AQM Security] Creating instance of AQM_Security_Public');
             $plugin_public = new AQM_Security_Public('aqm-security', AQM_SECURITY_VERSION);
             
-            // Set the visitor data and allowed status
-            $plugin_public->geo_data = $visitor_data;
-            $plugin_public->is_allowed = $is_allowed;
-            $plugin_public->has_forms = true; // Force forms detection
+            // Set the visitor data and allowed status using reflection to access private properties
+            // This is a workaround for testing purposes only
+            $reflectionClass = new ReflectionClass('AQM_Security_Public');
+            
+            $geoDataProperty = $reflectionClass->getProperty('geo_data');
+            $geoDataProperty->setAccessible(true);
+            $geoDataProperty->setValue($plugin_public, $visitor_data);
+            
+            $isAllowedProperty = $reflectionClass->getProperty('is_allowed');
+            $isAllowedProperty->setAccessible(true);
+            $isAllowedProperty->setValue($plugin_public, $is_allowed);
+            
+            $hasFormsProperty = $reflectionClass->getProperty('has_forms');
+            $hasFormsProperty->setAccessible(true);
+            $hasFormsProperty->setValue($plugin_public, true); // Force forms detection
             
             error_log('[AQM Security] Visitor data set: ' . json_encode(array(
                 'region' => isset($visitor_data['region']) ? $visitor_data['region'] : 'unknown',
