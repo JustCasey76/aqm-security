@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.1.8 - May 20, 2025
+- Added automated form testing feature to test form submission blocking
+- Added test location selector to simulate visitors from different states
+- Fixed handling of allowed states option to ensure it's always treated as an array
+- Enhanced test mode with visual feedback for test results
+
 ## 2.1.7 - May 20, 2025
 - Version bump for testing GitHub Updater functionality
 
