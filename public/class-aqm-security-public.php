@@ -90,6 +90,14 @@ class AQM_Security_Public {
             // Filter for form display
             add_filter('frm_form_options_before_update', array($this, 'check_formidable_options'), 10, 1);
             
+            // ENHANCED: Add more hooks to catch all form submission methods
+            add_action('frm_before_create_entry', array($this, 'block_form_submission_if_needed'), 1, 2);
+            add_action('frm_validate_entry', array($this, 'validate_submission_location'), 1, 2);
+            
+            // Also hook into the AJAX submission handler
+            add_action('wp_ajax_frm_entries_create', array($this, 'check_ajax_submission'), 1);
+            add_action('wp_ajax_nopriv_frm_entries_create', array($this, 'check_ajax_submission'), 1);
+            
             // Ensure the formidable forms hooks are set up properly
             add_action('wp_loaded', function() {
                 // Reset any form blocking on each page load to ensure consistent behavior
@@ -719,7 +727,116 @@ class AQM_Security_Public {
         }
     }
     
-    // The get_formatted_blocked_message method is now implemented as a public method above
+    /**
+     * Replace any form content with blocked message
+     */
+    public function catch_and_replace_forms($buffer) {
+        // Only process if we're not allowed and the buffer has form content
+        if ($this->is_allowed === false && !empty($buffer)) {
+            // Look for Formidable Forms HTML
+            if (strpos($buffer, 'class="frm_forms') !== false || 
+                strpos($buffer, 'class="frm-show-form') !== false ||
+                strpos($buffer, 'class="with_frm_style') !== false) {
+                
+                // Get the blocked message
+                $message = $this->get_formatted_blocked_message();
+                
+                // Create the styled message HTML
+                $message_html = '<div class="aqm-security-blocked-message" style="background-color: #f8d7da; color: #721c24; padding: 15px; border: 1px solid #f5c6cb; border-radius: 4px; margin: 20px 0;">';
+                $message_html .= '<h3 style="margin-top: 0;">' . __('Access Restricted', 'aqm-security') . '</h3>';
+                $message_html .= '<p>' . wp_kses_post($message) . '</p>';
+                $message_html .= '</div>';
+                
+                // Use regex to replace form HTML with blocked message
+                $buffer = preg_replace('/<div[^>]*class="frm_forms[^>]*>.*?<\/div><\/div>/s', $message_html, $buffer);
+                $buffer = preg_replace('/<div[^>]*class="frm-show-form[^>]*>.*?<\/div><\/div>/s', $message_html, $buffer);
+                $buffer = preg_replace('/<div[^>]*class="with_frm_style[^>]*>.*?<\/div><\/div>/s', $message_html, $buffer);
+            }
+        }
+        
+        return $buffer;
+    }
+    
+    /**
+     * Block form submission if visitor is not allowed
+     * This is a more robust server-side check that catches all form submissions
+     * 
+     * @param array $values The form values
+     * @param int $form_id The form ID
+     * @return void
+     */
+    public function block_form_submission_if_needed($values, $form_id) {
+        // Skip for admin users
+        if (current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Check if visitor is allowed
+        if (!$this->is_visitor_allowed()) {
+            // Log the blocked submission attempt
+            AQM_Security_API::debug_log("BLOCKED SUBMISSION: Form ID $form_id submission blocked for visitor from {$this->geo_data['region']} ({$this->geo_data['country_code']})");
+            
+            // Display blocked message and exit
+            $this->display_blocked_message();
+        }
+    }
+    
+    /**
+     * Validate submission based on visitor location
+     * This adds a validation error if the visitor is not allowed
+     * 
+     * @param array $errors Current validation errors
+     * @param array $values Form values
+     * @return array Updated validation errors
+     */
+    public function validate_submission_location($errors, $values) {
+        // Skip for admin users
+        if (current_user_can('manage_options')) {
+            return $errors;
+        }
+        
+        // Check if visitor is allowed
+        if (!$this->is_visitor_allowed()) {
+            // Get form ID
+            $form_id = isset($values['form_id']) ? $values['form_id'] : 0;
+            
+            // Add a validation error to prevent submission
+            $errors['location'] = __('Form submission blocked based on your location.', 'aqm-security');
+            
+            // Log the blocked submission attempt
+            AQM_Security_API::debug_log("VALIDATION BLOCKED: Form ID $form_id submission blocked for visitor from {$this->geo_data['region']} ({$this->geo_data['country_code']})");
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * Check AJAX form submissions
+     * This catches form submissions made via AJAX
+     * 
+     * @return void
+     */
+    public function check_ajax_submission() {
+        // Skip for admin users
+        if (current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Check if visitor is allowed
+        if (!$this->is_visitor_allowed()) {
+            // Get form ID from AJAX request
+            $form_id = isset($_POST['form_id']) ? intval($_POST['form_id']) : 0;
+            
+            // Log the blocked AJAX submission attempt
+            AQM_Security_API::debug_log("AJAX BLOCKED: Form ID $form_id AJAX submission blocked for visitor from {$this->geo_data['region']} ({$this->geo_data['country_code']})");
+            
+            // Return error response
+            wp_send_json_error(array(
+                'message' => __('Form submission blocked based on your location.', 'aqm-security'),
+                'errors' => array('location' => __('Form submission blocked based on your location.', 'aqm-security'))
+            ));
+        }
+    }
     
     /**
      * Replace any form content with blocked message

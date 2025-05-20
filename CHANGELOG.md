@@ -1,5 +1,11 @@
 # AQM Security Plugin Changelog
 
+## 2.1.5 - May 20, 2025
+- CRITICAL FIX: Enhanced form submission blocking to prevent form submissions from blocked locations
+- Added multiple server-side checks to catch all form submission methods including AJAX
+- Added robust validation to prevent form submissions even if the form is visible
+- Fixed issue where visitors from blocked locations could still submit forms in some cases
+
 ## 2.1.4 - May 20, 2025
 - CRITICAL FIX: Fixed issue where geolocation restrictions were incorrectly applied to WordPress admin area
 - Added proper admin page exclusion in the check_geolocation method to ensure admins can access the backend regardless of location
