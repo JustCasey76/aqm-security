@@ -234,6 +234,13 @@ class AQM_Security_Public {
             return $this->is_allowed;
         }
         
+        // CRITICAL FIX: Skip admin pages and AJAX requests to allow admin access regardless of location
+        if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
+            $this->is_allowed = true;
+            $already_checked = true;
+            return $this->is_allowed;
+        }
+        
         try {
             $already_checked = true;
             

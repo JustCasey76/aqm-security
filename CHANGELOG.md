@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.1.4 - May 20, 2025
+- CRITICAL FIX: Fixed issue where geolocation restrictions were incorrectly applied to WordPress admin area
+- Added proper admin page exclusion in the check_geolocation method to ensure admins can access the backend regardless of location
+- Ensures plugin only restricts access to Formidable Forms on the front-end as intended
+
 ## 2.1.3 - May 20, 2025
 - Fixed PHP 8.2+ deprecation warnings about dynamic property creation
 - Added proper property declarations in AQM_Security and AQM_Security_Public classes
