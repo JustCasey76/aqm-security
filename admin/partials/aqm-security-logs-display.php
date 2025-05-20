@@ -11,7 +11,7 @@ $current_date = isset($_GET['date']) ? sanitize_text_field($_GET['date']) : date
 
 // Get filter parameters
 $filters = array();
-$filter_fields = array('ip', 'country', 'region', 'zipcode', 'allowed', 'time_start', 'time_end');
+$filter_fields = array('ip', 'country', 'region', 'allowed', 'time_start', 'time_end'); // Zipcode removed in v2.2.8
 
 foreach ($filter_fields as $field) {
     if (isset($_GET[$field]) && $_GET[$field] !== '') {
@@ -34,7 +34,7 @@ $logs = AQM_Security_Logger::get_logs($current_date, $per_page, $offset, $filter
 // Get unique values for filter dropdowns
 $countries = AQM_Security_Logger::get_unique_values('country', $current_date);
 $regions = AQM_Security_Logger::get_unique_values('region', $current_date);
-$zipcodes = AQM_Security_Logger::get_unique_values('zipcode', $current_date);
+// Zipcode dropdown removed in v2.2.8
 
 // Format the current URL without filters for reset button
 $reset_url = add_query_arg(array(
@@ -103,15 +103,7 @@ $reset_url = add_query_arg(array(
                             <?php endforeach; ?>
                         </select>
                         
-                        <!-- Zipcode Filter -->
-                        <select name="zipcode" style="width: 120px;">
-                            <option value=""><?php echo esc_html__('All Zipcodes', 'aqm-security'); ?></option>
-                            <?php foreach ($zipcodes as $zipcode): ?>
-                                <option value="<?php echo esc_attr($zipcode); ?>" <?php selected(isset($filters['zipcode']) ? $filters['zipcode'] : '', $zipcode); ?>>
-                                    <?php echo esc_html($zipcode); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <!-- Zipcode Filter removed in v2.2.8 -->
                         
                         <!-- Status Filter -->
                         <select name="allowed" style="width: 120px;">
@@ -161,7 +153,7 @@ $reset_url = add_query_arg(array(
                                 'ip' => __('IP', 'aqm-security'),
                                 'country' => __('Country', 'aqm-security'),
                                 'region' => __('Region', 'aqm-security'),
-                                'zipcode' => __('Zipcode', 'aqm-security'),
+                                // Zipcode removed in v2.2.8
                                 'allowed' => __('Status', 'aqm-security'),
                                 'time_start' => __('Start Time', 'aqm-security'),
                                 'time_end' => __('End Time', 'aqm-security')
@@ -199,7 +191,7 @@ $reset_url = add_query_arg(array(
                         <th><?php echo esc_html__('IP Address', 'aqm-security'); ?></th>
                         <th><?php echo esc_html__('Country', 'aqm-security'); ?></th>
                         <th><?php echo esc_html__('Region', 'aqm-security'); ?></th>
-                        <th><?php echo esc_html__('Zipcode', 'aqm-security'); ?></th>
+                        <!-- Zipcode column removed in v2.2.8 -->
                         <th><?php echo esc_html__('Status', 'aqm-security'); ?></th>
                     </tr>
                 </thead>
@@ -252,16 +244,7 @@ $reset_url = add_query_arg(array(
                                     </span>
                                 </div>
                             </td>
-                            <td>
-                                <?php echo esc_html($log['zipcode']); ?>
-                                <div class="row-actions">
-                                    <span class="filter">
-                                        <a href="<?php echo esc_url(add_query_arg(array('page' => 'aqm-security-logs', 'date' => $current_date, 'zipcode' => $log['zipcode']))); ?>">
-                                            <?php echo esc_html__('Filter', 'aqm-security'); ?>
-                                        </a>
-                                    </span>
-                                </div>
-                            </td>
+                            <!-- Zipcode column removed in v2.2.8 -->
                             <td>
                                 <?php if ($log['allowed']): ?>
                                     <span class="dashicons dashicons-yes-alt" style="color: green;" title="<?php echo esc_attr__('Allowed', 'aqm-security'); ?>"></span>

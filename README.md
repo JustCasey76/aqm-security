@@ -25,6 +25,11 @@ A WordPress plugin that provides geolocation-based security to control access to
 
 ## Changelog
 
+### 2.2.8
+- Removed Zipcode column from visitor logs display
+- Removed Zipcode filtering functionality
+- UI cleanup for better focus on relevant geolocation data
+
 ### 2.2.7
 - Enhanced security to prevent API-based form submission bypasses
 - Added protection for REST API endpoints
