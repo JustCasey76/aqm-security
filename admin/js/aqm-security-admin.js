@@ -11,6 +11,7 @@
             
             var $button = $(this);
             var $resultDiv = $('#aqm_security_api_test_result');
+            var $statusIndicator = $('.aqm-api-connection-status');
             var apiKey = $('#aqm_security_api_key').val();
             
             // Check if API key is empty
@@ -30,7 +31,8 @@
                 type: 'POST',
                 data: {
                     action: 'aqm_security_test_api',
-                    nonce: aqmSecurityAdmin.nonce
+                    nonce: aqmSecurityAdmin.nonce,
+                    api_key: apiKey // Send the API key with the request
                 },
                 success: function(response) {
                     if (response.success) {
@@ -43,14 +45,44 @@
                         html += '</pre>';
                         
                         $resultDiv.removeClass('error').addClass('success').html(html);
+                        
+                        // Update connection status indicator
+                        if (!$statusIndicator.length) {
+                            // Create indicator if it doesn't exist
+                            $statusIndicator = $('<span class="aqm-api-connection-status"></span>');
+                            $statusIndicator.insertAfter('#aqm_security_api_key');
+                        }
+                        
+                        $statusIndicator.removeClass('disconnected').addClass('connected');
+                        $statusIndicator.text('Connected');
                     } else {
                         $resultDiv.removeClass('success').addClass('error')
                             .html('<strong>Error:</strong> ' + response.data.message);
+                        
+                        // Update connection status indicator
+                        if (!$statusIndicator.length) {
+                            // Create indicator if it doesn't exist
+                            $statusIndicator = $('<span class="aqm-api-connection-status"></span>');
+                            $statusIndicator.insertAfter('#aqm_security_api_key');
+                        }
+                        
+                        $statusIndicator.removeClass('connected').addClass('disconnected');
+                        $statusIndicator.text('Not Connected');
                     }
                 },
                 error: function(xhr, status, error) {
                     $resultDiv.removeClass('success').addClass('error')
                         .html('<strong>Error:</strong> Failed to connect to server.');
+                    
+                    // Update connection status indicator for error case
+                    if (!$statusIndicator.length) {
+                        // Create indicator if it doesn't exist
+                        $statusIndicator = $('<span class="aqm-api-connection-status"></span>');
+                        $statusIndicator.insertAfter('#aqm_security_api_key');
+                    }
+                    
+                    $statusIndicator.removeClass('connected').addClass('disconnected');
+                    $statusIndicator.text('Not Connected');
                 },
                 complete: function() {
                     // Re-enable button

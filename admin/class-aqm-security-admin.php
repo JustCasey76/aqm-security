@@ -463,10 +463,58 @@ class AQM_Security_Admin {
      */
     public function render_api_key_field() {
         $api_key = get_option('aqm_security_api_key', '');
+        $connection_status = $this->check_api_connection_status();
         
+        echo '<div class="aqm-api-key-wrapper">';
         echo '<input type="password" id="aqm_security_api_key" name="aqm_security_api_key" value="' . esc_attr($api_key) . '" class="regular-text" />';
+        
+        // Add connection status indicator
+        if (!empty($api_key)) {
+            $status_class = $connection_status ? 'connected' : 'disconnected';
+            $status_text = $connection_status ? __('Connected', 'aqm-security') : __('Not Connected', 'aqm-security');
+            echo '<span class="aqm-api-connection-status ' . $status_class . '">' . $status_text . '</span>';
+        }
+        
         echo '<button type="button" id="aqm_security_test_api" class="button button-secondary">' . __('Test API', 'aqm-security') . '</button>';
+        echo '</div>';
         echo '<div id="aqm_security_api_test_result" style="margin-top: 10px;"></div>';
+        
+        // Add description
+        echo '<p class="description">' . __('Enter your ipapi.com API key. This is required for geolocation services.', 'aqm-security') . '</p>';
+    }
+    
+    /**
+     * Check if the API connection is working
+     * 
+     * @return bool True if connected, false otherwise
+     */
+    private function check_api_connection_status() {
+        $api_key = get_option('aqm_security_api_key', '');
+        
+        if (empty($api_key)) {
+            return false;
+        }
+        
+        // Use a transient to cache the status check to avoid checking on every page load
+        $status = get_transient('aqm_security_api_connection_status');
+        
+        if ($status === false) {
+            // Get a test IP address
+            $ip = '8.8.8.8'; // Google's DNS server as a reliable test IP
+            
+            // Try to get geolocation data
+            $geo_data = AQM_Security_API::get_geolocation_data($ip);
+            
+            // Check if we got a valid response
+            $status = !is_wp_error($geo_data) && isset($geo_data['country_code']);
+            
+            // Cache the result for 1 hour
+            set_transient('aqm_security_api_connection_status', $status ? '1' : '0', HOUR_IN_SECONDS);
+        } else {
+            $status = $status === '1';
+        }
+        
+        return $status;
     }
     
     /**
@@ -930,7 +978,30 @@ class AQM_Security_Admin {
         // Check nonce
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'aqm_security_admin_nonce')) {
             wp_send_json_error(array(
-                'message' => __('Security check failed.', 'aqm-security')
+                'message' => __('Security check failed.', 'aqm-security'),
+                'connection_status' => false
+            ));
+        }
+        
+        // Get API key from the AJAX request
+        $api_key = isset($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : '';
+        
+        // If API key is provided in the request, update the option
+        if (!empty($api_key)) {
+            update_option('aqm_security_api_key', $api_key);
+        } else {
+            // Otherwise get the saved API key
+            $api_key = get_option('aqm_security_api_key', '');
+        }
+        
+        // If no API key, return error
+        if (empty($api_key)) {
+            // Delete the connection status transient
+            delete_transient('aqm_security_api_connection_status');
+            
+            wp_send_json_error(array(
+                'message' => __('API key is missing. Please enter an API key.', 'aqm-security'),
+                'connection_status' => false
             ));
         }
         
@@ -940,22 +1011,30 @@ class AQM_Security_Admin {
         // Check if this is a local/private IP which won't work with the API
         if ($ip == '127.0.0.1' || $ip == '::1' || strpos($ip, '192.168.') === 0 || strpos($ip, '10.') === 0) {
             // Use a fallback public IP for testing
-            $ip = '98.118.92.174'; // Using the example IP from your temp.json
+            $ip = '8.8.8.8'; // Google's DNS server as a reliable test IP
         }
         
         // Get geolocation data
         $geo_data = AQM_Security_API::get_geolocation_data($ip);
         
         if (is_wp_error($geo_data)) {
+            // Update connection status transient to false
+            set_transient('aqm_security_api_connection_status', '0', HOUR_IN_SECONDS);
+            
             wp_send_json_error(array(
-                'message' => $geo_data->get_error_message()
+                'message' => $geo_data->get_error_message(),
+                'connection_status' => false
             ));
         }
+        
+        // Update connection status transient to true
+        set_transient('aqm_security_api_connection_status', '1', HOUR_IN_SECONDS);
         
         // Return the raw API response
         wp_send_json_success(array(
             'message' => __('API test successful!', 'aqm-security'),
-            'data' => $geo_data // Return the complete API response
+            'data' => $geo_data, // Return the complete API response
+            'connection_status' => true
         ));
     }
     

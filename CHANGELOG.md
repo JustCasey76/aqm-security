@@ -1,5 +1,10 @@
 # AQM Security Plugin Changelog
 
+## 2.3.3 - 2023-10-10
+- Added visual connection status indicator for the API key
+- Improved API key saving and testing functionality
+- Enhanced user interface for API connection status
+
 ## 2.3.2 - June 2, 2025
 - Fixed issue with API key field not saving in the settings page
 - Corrected settings group registration for API key option

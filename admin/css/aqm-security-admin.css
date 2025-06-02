@@ -39,6 +39,54 @@
     color: #b71c1c;
 }
 
+/* API Connection Status Indicator */
+.aqm-api-key-wrapper {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.aqm-api-connection-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-right: 10px;
+    position: relative;
+    padding-left: 22px;
+}
+
+.aqm-api-connection-status:before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.aqm-api-connection-status.connected {
+    background-color: #ecf7ed;
+    color: #1e7a34;
+}
+
+.aqm-api-connection-status.connected:before {
+    background-color: #4caf50;
+}
+
+.aqm-api-connection-status.disconnected {
+    background-color: #fde8e8;
+    color: #b71c1c;
+}
+
+.aqm-api-connection-status.disconnected:before {
+    background-color: #e57373;
+}
+
 /* Settings page */
 .form-table td textarea {
     min-height: 120px;
