@@ -9,7 +9,7 @@
     <form method="post" action="options.php">
         <?php
         // Output security fields
-        settings_fields('aqm_security_options');
+        settings_fields('aqm-security');
         // Output sections and their fields
         do_settings_sections('aqm-security');
         // Output save settings button

@@ -1,5 +1,15 @@
 # AQM Security Plugin Changelog
 
+## 2.3.2 - June 2, 2025
+- Fixed issue with API key field not saving in the settings page
+- Corrected settings group registration for API key option
+
+## 2.3.1 - May 23, 2025
+- Removed decoy fields feature to improve user experience
+- Fixed bot tester to properly respect checkbox selections
+- Improved test results display to only show selected test methods
+- Enhanced bot detection with more reliable invisible methods
+
 ## 2.2.5 - May 20, 2025
 - Fixed property access error in form testing feature
 - Implemented PHP Reflection to properly access private properties for testing

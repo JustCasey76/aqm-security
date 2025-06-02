@@ -118,8 +118,7 @@ class AQM_Security_Admin {
      */
     public function register_settings() {
         // Register test IP setting
-        register_setting(
-            'aqm-security',
+        register_setting('aqm-security',
             'aqm_security_test_ip'
         );
         
@@ -127,6 +126,12 @@ class AQM_Security_Admin {
         register_setting(
             'aqm-security',
             'aqm_security_test_form_id'
+        );
+        
+        // Register API key setting
+        register_setting(
+            'aqm-security',
+            'aqm_security_api_key'
         );
         
         register_setting('aqm_security_options', 'aqm_security_blocked_ips');
@@ -148,6 +153,37 @@ class AQM_Security_Admin {
         register_setting('aqm_security_options', 'aqm_security_log_retention', array(
             'default' => 30, // Default to 30 days
             'sanitize_callback' => 'absint' // Ensure it's a positive integer
+        ));
+        
+        // Register bot detection settings
+        register_setting('aqm_security_options', 'aqm_security_enable_honeypot', array(
+            'default' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean'
+        ));
+        
+        register_setting('aqm_security_options', 'aqm_security_enable_time_trap', array(
+            'default' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean'
+        ));
+        
+        register_setting('aqm_security_options', 'aqm_security_min_form_time', array(
+            'default' => 3, // Default to 3 seconds
+            'sanitize_callback' => 'absint'
+        ));
+        
+        register_setting('aqm_security_options', 'aqm_security_enable_js_validation', array(
+            'default' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean'
+        ));
+        
+        register_setting('aqm_security_options', 'aqm_security_enable_decoy_fields', array(
+            'default' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean'
+        ));
+        
+        register_setting('aqm_security_options', 'aqm_security_auto_block_bots', array(
+            'default' => false,
+            'sanitize_callback' => 'rest_sanitize_boolean'
         ));
         
         // Handle settings import if submitted
@@ -173,6 +209,14 @@ class AQM_Security_Admin {
         // Blocked message option hook removed - now using hardcoded personalized messages
         add_action('update_option_aqm_security_log_throttle', array($this, 'clear_visitor_cache'), 10, 2);
         add_action('update_option_aqm_security_log_retention', array($this, 'clear_visitor_cache'), 10, 2);
+        
+        // Add hooks for bot detection settings
+        add_action('update_option_aqm_security_enable_honeypot', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_enable_time_trap', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_min_form_time', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_enable_js_validation', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_enable_decoy_fields', array($this, 'clear_visitor_cache'), 10, 2);
+        add_action('update_option_aqm_security_auto_block_bots', array($this, 'clear_visitor_cache'), 10, 2);
         
         // Add API settings section
         add_settings_section(
@@ -282,6 +326,59 @@ class AQM_Security_Admin {
             array($this, 'render_log_retention_field'),
             'aqm-security',
             'aqm_security_advanced_section'
+        );
+        
+        // Add bot detection section
+        add_settings_section(
+            'aqm_security_bot_detection_section',
+            __('Bot Detection Settings', 'aqm-security'),
+            array($this, 'render_bot_detection_section'),
+            'aqm-security'
+        );
+        
+        // Add honeypot field
+        add_settings_field(
+            'aqm_security_enable_honeypot',
+            __('Enable Honeypot Fields', 'aqm-security'),
+            array($this, 'render_enable_honeypot_field'),
+            'aqm-security',
+            'aqm_security_bot_detection_section'
+        );
+        
+        // Add time trap field
+        add_settings_field(
+            'aqm_security_enable_time_trap',
+            __('Enable Time-Based Detection', 'aqm-security'),
+            array($this, 'render_enable_time_trap_field'),
+            'aqm-security',
+            'aqm_security_bot_detection_section'
+        );
+        
+        // Add minimum form time field
+        add_settings_field(
+            'aqm_security_min_form_time',
+            __('Minimum Form Completion Time (seconds)', 'aqm-security'),
+            array($this, 'render_min_form_time_field'),
+            'aqm-security',
+            'aqm_security_bot_detection_section'
+        );
+        
+        // Add JavaScript validation field
+        add_settings_field(
+            'aqm_security_enable_js_validation',
+            __('Enable JavaScript Validation', 'aqm-security'),
+            array($this, 'render_enable_js_validation_field'),
+            'aqm-security',
+            'aqm_security_bot_detection_section'
+        );
+        
+        // Add auto-block bots option
+        add_settings_field(
+            'aqm_security_auto_block_bots',
+            __('Auto-Block Detected Bots', 'aqm-security'),
+            array($this, 'render_auto_block_bots_field'),
+            'aqm-security',
+            'aqm_security_bot_detection_section'
         );
     }
     
@@ -652,7 +749,6 @@ class AQM_Security_Admin {
         foreach ($options as $value => $label) {
             echo '<option value="' . esc_attr($value) . '" ' . selected($retention_days, $value, false) . '>' . esc_html($label) . '</option>';
         }
-        
         echo '</select>';
         echo '<p class="description">' . __('How long to keep visitor log data before automatically deleting it. Set to "Forever" to keep logs indefinitely.', 'aqm-security') . '</p>';
     }
@@ -723,6 +819,96 @@ class AQM_Security_Admin {
                 </div>
             </div>
         </div>
+        <?php
+    }
+    
+    /**
+     * Render the bot detection section description
+     */
+    public function render_bot_detection_section() {
+        ?>
+        <p><?php _e('Configure advanced bot detection features to prevent form spam and abuse. These settings add multiple layers of protection against automated submissions.', 'aqm-security'); ?></p>
+        <?php
+    }
+    
+    /**
+     * Render the enable honeypot field
+     */
+    public function render_enable_honeypot_field() {
+        $enable_honeypot = get_option('aqm_security_enable_honeypot', true);
+        ?>
+        <label>
+            <input type="checkbox" name="aqm_security_enable_honeypot" value="1" <?php checked($enable_honeypot, true); ?>>
+            <?php _e('Enable honeypot fields to catch bots', 'aqm-security'); ?>
+        </label>
+        <p class="description">
+            <?php _e('Adds invisible fields that only bots will fill out. Humans won\'t see these fields, but bots will attempt to complete them.', 'aqm-security'); ?>
+        </p>
+        <?php
+    }
+    
+    /**
+     * Render the enable time trap field
+     */
+    public function render_enable_time_trap_field() {
+        $enable_time_trap = get_option('aqm_security_enable_time_trap', true);
+        ?>
+        <label>
+            <input type="checkbox" name="aqm_security_enable_time_trap" value="1" <?php checked($enable_time_trap, true); ?>>
+            <?php _e('Enable time-based bot detection', 'aqm-security'); ?>
+        </label>
+        <p class="description">
+            <?php _e('Detects bots by measuring how quickly forms are submitted. Bots typically submit forms instantly, while humans take time to fill them out.', 'aqm-security'); ?>
+        </p>
+        <?php
+    }
+    
+    /**
+     * Render the minimum form time field
+     */
+    public function render_min_form_time_field() {
+        $min_form_time = get_option('aqm_security_min_form_time', 3);
+        ?>
+        <input type="number" name="aqm_security_min_form_time" value="<?php echo esc_attr($min_form_time); ?>" min="1" max="60" step="1">
+        <p class="description">
+            <?php _e('Minimum number of seconds required to complete a form. Submissions faster than this will be flagged as potential bots.', 'aqm-security'); ?>
+        </p>
+        <?php
+    }
+    
+    /**
+     * Render the enable JavaScript validation field
+     */
+    public function render_enable_js_validation_field() {
+        $enable_js_validation = get_option('aqm_security_enable_js_validation', true);
+        ?>
+        <label>
+            <input type="checkbox" name="aqm_security_enable_js_validation" value="1" <?php checked($enable_js_validation, true); ?>>
+            <?php _e('Enable JavaScript-based validation', 'aqm-security'); ?>
+        </label>
+        <p class="description">
+            <?php _e('Uses JavaScript to create and validate a security token. Many bots don\'t execute JavaScript, so this helps identify them.', 'aqm-security'); ?>
+        </p>
+        <?php
+    }
+    
+    
+    /**
+     * Render the auto-block bots field
+     */
+    public function render_auto_block_bots_field() {
+        $auto_block_bots = get_option('aqm_security_auto_block_bots', false);
+        ?>
+        <label>
+            <input type="checkbox" name="aqm_security_auto_block_bots" value="1" <?php checked($auto_block_bots, true); ?>>
+            <?php _e('Automatically add detected bot IPs to block list', 'aqm-security'); ?>
+        </label>
+        <p class="description">
+            <?php _e('When a bot is detected through any of the methods above, its IP address will be automatically added to the block list.', 'aqm-security'); ?>
+        </p>
+        <p class="description" style="color: #d63638;">
+            <?php _e('Warning: Use with caution as this could potentially block legitimate users if they trigger a false positive.', 'aqm-security'); ?>
+        </p>
         <?php
     }
     
