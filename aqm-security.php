@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name: AQM Security
- * Plugin URI: https://github.com/JustCasey76/aqm-security
+ * Plugin URI: https://github.com/AQ-Marketing/aqm-security
  * Description: Geolocation-based security plugin using ipapi.com to control access to Formidable Forms with advanced bot detection.
  * Version: 2.3.1
  * Author: AQM
  * Author URI: https://justcasey76.com
  * Text Domain: aqm-security
- * GitHub Plugin URI: https://github.com/JustCasey76/aqm-security
+ * GitHub Plugin URI: https://github.com/AQ-Marketing/aqm-security
  * Primary Branch: main
  * Requires at least: 5.6
  * Requires PHP: 7.3
@@ -65,7 +65,7 @@ function aqm_security_init_github_updater() {
         try {
             new AQM_Security_Updater(
                 __FILE__,                // Plugin File
-                'JustCasey76',           // GitHub username
+                'AQ-Marketing',           // GitHub username
                 'aqm-security',          // GitHub repository name
                 ''                       // Optional GitHub access token (for private repos)
             );
@@ -120,7 +120,7 @@ function aqm_security_handle_check_updates_ajax() {
     check_ajax_referer('aqm-security-check-updates', 'nonce');
     
     // Clear update transients to force a fresh check
-    delete_transient('aqm_security_github_data_' . md5('JustCasey76' . 'aqm-security'));
+    delete_transient('aqm_security_github_data_' . md5('AQ-Marketing' . 'aqm-security'));
     delete_site_transient('update_plugins');
     
     // Force WordPress to check for updates
